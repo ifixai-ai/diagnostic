@@ -237,7 +237,7 @@ async def execute_tests(
 ) -> TestRunResult | None:
 
     try:
-        load_fixture(fixture)
+        loaded_fixture = load_fixture(fixture)
     except FileNotFoundError as exc:
         click.echo(click.style(f"Fixture error: {exc}", fg="red"))
         return None
@@ -273,7 +273,7 @@ async def execute_tests(
                 system_name=system_name,
                 system_version=system_version,
                 provider=provider,
-                fixture_name=fixture,
+                fixture_name=loaded_fixture.metadata.name,
                 overall_score=single_result.score,
                 strategic_score=single_result.score,
                 test_results=[single_result],

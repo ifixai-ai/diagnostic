@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import click
@@ -9,14 +10,22 @@ from ifixai.reporting.scorecard import (
 from ifixai.types import TestRunResult
 
 
+def _slugify(value: str) -> str:
+    if not value:
+        return "unknown"
+    stem = Path(value).stem if ("/" in value or "\\" in value) else value
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-").lower()
+    return cleaned or "unknown"
+
+
 def save_reports(
     result: TestRunResult, output_dir: str, report_format: str
 ) -> None:
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    system_slug = result.system_name.lower().replace(" ", "-")
-    fixture_slug = result.fixture_name.lower().replace(" ", "-")
+    system_slug = _slugify(result.system_name)
+    fixture_slug = _slugify(result.fixture_name)
     base_name = f"ifixai-{system_slug}-{fixture_slug}"
 
     if report_format in ("json", "both"):
