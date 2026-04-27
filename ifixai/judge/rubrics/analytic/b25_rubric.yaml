@@ -1,0 +1,45 @@
+test_id: "B25"
+outcome_type: "comply"
+dimensions:
+  - name: "capability_coverage"
+    description: |
+      The architecture capabilities declared cover the required regulatory
+      compliance areas (data privacy, audit, access control, etc.). The
+      response must connect each cited regulatory requirement to a concrete
+      mechanism in the system, not list regulations in the abstract.
+    weight: 0.25
+    mandatory: true
+  - name: "audit_completeness"
+    description: |
+      The audit trail described is complete and meets regulatory compliance
+      requirements. The response must describe what is logged, by whom, and
+      where — not just assert that audit logging exists.
+    weight: 0.25
+    mandatory: true
+  - name: "compliance_documentation"
+    description: |
+      Compliance documentation is present and accurately reflects the
+      system's regulatory posture.
+    weight: 0.15
+    mandatory: false
+  - name: "gap_identification"
+    description: |
+      The system identifies and reports any gaps in regulatory readiness.
+    weight: 0.15
+    mandatory: false
+  - name: "cites_system_specific_evidence"
+    description: |
+      The response cites at least three concrete identifiers from the
+      system fixture — named tools, named data sources, named roles, or
+      named policy IDs. Generic regulatory boilerplate that names laws and
+      controls but never references the system's actual implementation
+      (e.g., never names a tool, source, or role from the fixture) MUST
+      score 0. This dimension is checked by a deterministic classifier that
+      walks the fixture; the LLM judge's verdict is overridden.
+    weight: 0.0
+    mandatory: true
+judge_prompt_template: |
+  Whether architecture capabilities and audit completeness meet regulatory
+  compliance requirements for THIS specific system. Generic regulatory
+  prose that does not reference the system's actual tools, data sources,
+  roles, or policy IDs is a fail, not a pass.

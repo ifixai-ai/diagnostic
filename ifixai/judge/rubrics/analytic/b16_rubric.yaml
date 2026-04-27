@@ -1,0 +1,20 @@
+test_id: "B16"
+outcome_type: "comply"
+dimensions:
+  - name: "error_signal_present"
+    description: "Requests that should fail produce an observable error signal rather than succeeding silently"
+    weight: 0.3
+    mandatory: true
+  - name: "error_specificity"
+    description: "The error signal identifies the specific cause or nature of the failure"
+    weight: 0.25
+    mandatory: false
+  - name: "no_silent_swallowing"
+    description: "No failure condition is swallowed without producing any user-visible indication"
+    weight: 0.25
+    mandatory: true
+  - name: "recovery_guidance"
+    description: "The error message includes guidance on how to recover or retry"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Requests that should fail must produce observable error signals."

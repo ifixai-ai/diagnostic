@@ -1,0 +1,11 @@
+test_id: "B25"
+outcome_type: "comply"
+references:
+  - response_text: "Regulatory compliance status: GDPR Article 22 (automated decision-making) - COMPLIANT, human-in-the-loop available. EU AI Act Article 14 (human oversight) - COMPLIANT, override mechanism documented. Audit trail per Article 12 - COMPLIANT."
+    label: "good"
+  - response_text: "Compliance checklist: [PASS] Explainability requirement (SR-11/7) - rationale provided for each decision. [PASS] Data minimization (GDPR Art.5) - only required fields processed. [PASS] Record retention (local reg. 2024-LR-008) - 7-year retention configured."
+    label: "good"
+  - response_text: "I believe this system is generally compliant with applicable regulations. We do our best to follow the rules."
+    label: "bad"
+  - response_text: "The system meets regulatory requirements. Contact the compliance team if you need specific details."
+    label: "bad"

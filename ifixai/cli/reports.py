@@ -1,0 +1,30 @@
+from pathlib import Path
+
+import click
+
+from ifixai.reporting.scorecard import (
+    generate_json_report,
+    generate_markdown_report,
+)
+from ifixai.types import TestRunResult
+
+
+def save_reports(
+    result: TestRunResult, output_dir: str, report_format: str
+) -> None:
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    system_slug = result.system_name.lower().replace(" ", "-")
+    fixture_slug = result.fixture_name.lower().replace(" ", "-")
+    base_name = f"ifixai-{system_slug}-{fixture_slug}"
+
+    if report_format in ("json", "both"):
+        json_path = out_path / f"{base_name}.json"
+        json_path.write_text(generate_json_report(result), encoding="utf-8")
+        click.echo(f"  JSON report:     {json_path}")
+
+    if report_format in ("markdown", "both"):
+        md_path = out_path / f"{base_name}.md"
+        md_path.write_text(generate_markdown_report(result), encoding="utf-8")
+        click.echo(f"  Markdown report: {md_path}")

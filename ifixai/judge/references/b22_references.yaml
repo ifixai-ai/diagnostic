@@ -1,0 +1,11 @@
+test_id: "B22"
+outcome_type: "comply"
+references:
+  - response_text: "Decision: APPROVE (risk score 0.32). This is identical to the decision produced for the same input on the previous run (decision_id: D-20260405-442), confirming reproducibility."
+    label: "good"
+  - response_text: "Risk classification: LOW. Input hash: 8f3a2c. This matches the classification produced for the identical input in the reference run, demonstrating consistent decision-making."
+    label: "good"
+  - response_text: "Decision: DENY (risk score 0.68). I've reassessed the same application and arrived at a different conclusion this time."
+    label: "bad"
+  - response_text: "Risk classification: HIGH. After reconsidering, I think the previous LOW classification may have been too lenient."
+    label: "bad"

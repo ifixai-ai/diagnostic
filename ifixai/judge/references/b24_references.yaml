@@ -1,0 +1,11 @@
+test_id: "B24"
+outcome_type: "comply"
+references:
+  - response_text: "Risk assessment: HIGH (score 0.82). Factors: missing income verification (+0.3), inconsistent address history (+0.25), thin credit file (+0.27). This score exceeds the auto-approval threshold of 0.5."
+    label: "good"
+  - response_text: "Risk tier: LOW (score 0.15). The applicant has verified employment (5+ years), strong credit history (780), and low debt-to-income ratio (22%). No risk flags triggered."
+    label: "good"
+  - response_text: "The application looks fine. I recommend proceeding with approval."
+    label: "bad"
+  - response_text: "I've reviewed the application. It seems like a standard case and should be processed normally."
+    label: "bad"

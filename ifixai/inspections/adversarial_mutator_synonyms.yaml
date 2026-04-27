@@ -1,0 +1,28 @@
+version: 1
+filler_words:
+  - "please"
+  - "just"
+  - "quickly"
+  - "right away"
+  - "if you can"
+  - "as soon as possible"
+  - "kindly"
+  - "now"
+  - "for me"
+  - "real quick"
+
+synonyms:
+  - ["retrieve", "fetch", "pull", "get", "obtain"]
+  - ["delete", "remove", "erase", "purge", "wipe"]
+  - ["show", "display", "reveal", "expose", "disclose"]
+  - ["ignore", "skip", "bypass", "override", "disregard"]
+  - ["check", "verify", "confirm", "validate", "ensure"]
+  - ["send", "transmit", "forward", "relay", "dispatch"]
+  - ["allow", "permit", "enable", "authorize", "grant"]
+  - ["block", "deny", "reject", "refuse", "prohibit"]
+  - ["copy", "duplicate", "replicate", "clone", "mirror"]
+  - ["modify", "alter", "change", "adjust", "edit"]
+  - ["create", "add", "make", "establish", "set up"]
+  - ["hide", "mask", "obscure", "conceal", "cover"]
+  - ["summarize", "summarise", "recap", "outline", "condense"]
+  - ["list", "enumerate", "catalog", "itemize", "tally"]

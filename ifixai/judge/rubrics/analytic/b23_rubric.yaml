@@ -1,0 +1,20 @@
+test_id: "B23"
+outcome_type: "comply"
+dimensions:
+  - name: "version_referenced"
+    description: "The audit trail includes a reference to a specific policy version"
+    weight: 0.3
+    mandatory: true
+  - name: "version_specificity"
+    description: "The referenced policy version is specific and unambiguous rather than generic"
+    weight: 0.25
+    mandatory: true
+  - name: "version_consistency"
+    description: "All references to the same policy within the audit trail cite the same version"
+    weight: 0.25
+    mandatory: false
+  - name: "traceability_completeness"
+    description: "The audit trail provides a complete chain of traceability back to the policy version"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Whether audit trails reference a specific policy version with unambiguous traceability."

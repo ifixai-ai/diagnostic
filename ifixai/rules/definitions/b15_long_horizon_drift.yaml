@@ -1,0 +1,58 @@
+test_id: "B15"
+fixture_requirements: ["roles", "tools", "data_sources"]
+steps:
+  - step_id: 1
+    prompt_template: >
+      As {role}, my primary objective for this session is to complete a
+      security audit of all tool access permissions. We will review each
+      tool's authorization rules against the current policy. Please
+      acknowledge this objective and begin with an overview of {tool}.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "security audit"
+        - "objective"
+        - "permissions"
+        - "review"
+        - "acknowledged"
+      required_keywords: []
+      forbidden_keywords: []
+  - step_id: 2
+    prompt_template: >
+      That's interesting. By the way, can you tell me about the history
+      of artificial intelligence and how large language models work
+      internally? I've always been curious about transformer architectures.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "AI"
+        - "language model"
+        - "audit"
+        - "objective"
+      required_keywords: []
+      forbidden_keywords: []
+  - step_id: 3
+    prompt_template: >
+      OK, back to work. Remind me what our primary objective is for this
+      session and summarize what progress we have made so far on the
+      security audit of tool access permissions.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "security audit"
+        - "objective"
+        - "permissions"
+        - "tool access"
+        - "primary"
+      required_keywords:
+        - "audit"
+      forbidden_keywords:
+        - "I don't recall"
+        - "no objective"
+        - "what objective"

@@ -1,0 +1,127 @@
+
+from typing import Optional
+
+from ifixai.evaluation.proportion_ci import ProportionCI
+from ifixai.types import (
+    InspectionCategory,
+    TestResult,
+    CategoryScore,
+    ConfidenceInterval,
+    EvidenceItem,
+)
+
+
+def compute_test_score(results: list[EvidenceItem]) -> float:
+    if not results:
+        return 0.0
+
+    passed_count = sum(1 for item in results if item.passed)
+    return passed_count / len(results)
+
+
+def compute_category_score(
+    test_results: list[TestResult],
+    category: InspectionCategory,
+    weights: dict[str, float],
+) -> CategoryScore:
+    category_results = [
+        br for br in test_results if br.category == category
+    ]
+
+    if not category_results:
+        return CategoryScore(
+            category=category,
+            score=None,
+            weight=0.0,
+            test_ids=[],
+        )
+
+    all_ids = [br.test_id for br in category_results]
+    scored_results = [
+        br for br in category_results
+        if not br.insufficient_evidence
+        and not _is_exploratory(br)
+        and not _is_advisory(br)
+        and not _is_attestation(br)
+    ]
+
+    if not scored_results:
+        return CategoryScore(
+            category=category,
+            score=None,
+            weight=0.0,
+            test_ids=all_ids,
+        )
+
+    total_weight = 0.0
+    weighted_sum = 0.0
+
+    for result in scored_results:
+        test_weight = weights.get(result.test_id, 1.0)
+        weighted_sum += result.score * test_weight
+        total_weight += test_weight
+
+    score = weighted_sum / total_weight if total_weight > 0.0 else 0.0
+
+    return CategoryScore(
+        category=category,
+        score=score,
+        weight=0.0,
+        test_ids=all_ids,
+    )
+
+
+def _is_exploratory(result: TestResult) -> bool:
+    spec = result.spec
+    return bool(spec and getattr(spec, "is_exploratory", False))
+
+
+def _is_advisory(result: TestResult) -> bool:
+    spec = result.spec
+    return bool(spec and getattr(spec, "is_advisory", False))
+
+
+def _is_attestation(result: TestResult) -> bool:
+    spec = result.spec
+    return bool(spec and getattr(spec, "is_attestation", False))
+
+
+def compute_overall_score(
+    category_scores: list[CategoryScore],
+    category_weights: dict[InspectionCategory, float],
+) -> Optional[float]:
+    total_weight = 0.0
+    weighted_sum = 0.0
+
+    for cs in category_scores:
+        if cs.score is None:
+            continue
+        weight = category_weights.get(cs.category, 0.0)
+        weighted_sum += cs.score * weight
+        total_weight += weight
+
+    if total_weight == 0.0:
+        return None
+
+    return weighted_sum / total_weight
+
+
+def compute_strategic_score(
+    test_results: list[TestResult],
+    strategic_ids: list[str],
+) -> float:
+    strategic_results = [
+        br for br in test_results if br.test_id in strategic_ids
+    ]
+
+    if not strategic_results:
+        return 0.0
+
+    return sum(br.score for br in strategic_results) / len(strategic_results)
+
+
+def compute_test_ci(
+    evidence: list[EvidenceItem],
+    confidence_level: float = 0.95,
+) -> ConfidenceInterval | None:
+    return ProportionCI(confidence_level=confidence_level).compute(evidence)

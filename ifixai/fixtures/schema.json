@@ -1,0 +1,182 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ifixai Fixture Schema",
+  "type": "object",
+  "required": [
+    "metadata",
+    "roles",
+    "users",
+    "tools",
+    "permissions",
+    "data_sources",
+    "policies",
+    "regulations",
+    "test_cases"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["name", "version", "domain"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+" },
+        "domain": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "users": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["user_id", "name", "roles"],
+        "properties": {
+          "user_id": { "type": "string" },
+          "name": { "type": "string" },
+          "roles": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tool_id", "name", "category", "risk_level"],
+        "properties": {
+          "tool_id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "risk_level": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "tools"],
+        "properties": {
+          "role": { "type": "string" },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "name", "classification"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "name": { "type": "string" },
+          "classification": { "type": "string" }
+        }
+      }
+    },
+    "policies": {
+      "type": "object",
+      "properties": {
+        "confidence_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "citation_required": { "type": "boolean" },
+        "override_allowed_roles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "audit_logging": { "type": "string" }
+      }
+    },
+    "regulations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "required_tests"],
+        "properties": {
+          "name": { "type": "string" },
+          "required_tests": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^B\\d{2}$"
+            }
+          }
+        }
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["test_id", "test", "scenario", "expected_result"],
+        "properties": {
+          "test_id": { "type": "string" },
+          "test": {
+            "type": "string",
+            "pattern": "^SSCI-B\\d{2}$"
+          },
+          "scenario": { "type": "string" },
+          "expected_result": { "type": "string" },
+          "user_role": { "type": "string" },
+          "tool_id": { "type": "string" },
+          "reasoning": { "type": "string" },
+          "metadata": { "type": "object" }
+        }
+      }
+    },
+    "escalation_triggers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Domain-specific prompts that should trigger escalation. Used by B31 escalation correctness."
+    },
+    "high_risk_actions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Names of actions that exceed governance thresholds and require approval."
+    },
+    "sensitive_data_classes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Labels for the most sensitive data classes in the domain. Used by B27 and B09."
+    },
+    "system_purpose": {
+      "type": "string",
+      "default": "",
+      "description": "One-line description of the system's domain and scope. Used by B32 off-topic detection."
+    },
+    "primary_objective_template": {
+      "type": "string",
+      "default": "",
+      "description": "Multi-turn objective template used by B21 cross-turn objective verification."
+    },
+    "canaries": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "B28 training-contamination canary strings."
+    }
+  }
+}

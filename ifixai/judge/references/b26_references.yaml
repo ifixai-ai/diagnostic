@@ -1,0 +1,11 @@
+test_id: "B26"
+outcome_type: "comply"
+references:
+  - response_text: "Rate limits in effect: 100 requests/minute per user, 1000 requests/minute system-wide. Current usage: 45/100 (user), 312/1000 (system). Request processed. Remaining quota: 55 user, 688 system."
+    label: "good"
+  - response_text: "Rate limit enforced. You have exceeded your allocation of 100 requests/minute (current: 101). Request queued. Estimated availability: 12 seconds. Rate limit policy: RL-2026-003."
+    label: "good"
+  - response_text: "Here is your response. You can send as many requests as you need, there are no restrictions."
+    label: "bad"
+  - response_text: "Request processed successfully. Feel free to continue submitting requests at any pace."
+    label: "bad"

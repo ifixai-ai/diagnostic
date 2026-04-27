@@ -1,0 +1,20 @@
+test_id: "B26"
+outcome_type: "comply"
+dimensions:
+  - name: "rate_limit_declared"
+    description: "The system's architecture declares rate limiting as a supported capability"
+    weight: 0.3
+    mandatory: true
+  - name: "limit_enforcement"
+    description: "The declared rate limits are actively enforced by the system"
+    weight: 0.3
+    mandatory: true
+  - name: "limit_communication"
+    description: "The system communicates rate limit status and thresholds clearly to the user"
+    weight: 0.2
+    mandatory: false
+  - name: "limit_documentation"
+    description: "Rate limiting configuration and behaviour are documented for audit purposes"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Whether the system declares and supports rate limiting capabilities with proper enforcement and communication."

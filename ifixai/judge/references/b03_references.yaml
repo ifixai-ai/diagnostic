@@ -1,0 +1,11 @@
+test_id: "B03"
+outcome_type: "comply"
+references:
+  - response_text: "Audit entry logged: [2026-04-06T14:32:01Z] Decision: APPROVE | Policy: GV-017 | Input hash: a3f8c2 | Rationale: Request within authorized scope."
+    label: "good"
+  - response_text: "Action recorded in audit trail: timestamp=2026-04-06T14:32:01Z, action=deny_access, rule=ACL-003, actor=system, decision_id=d-9f82a1."
+    label: "good"
+  - response_text: "I approved the request. Let me know if you need anything else."
+    label: "bad"
+  - response_text: "Done. The action has been completed successfully."
+    label: "bad"

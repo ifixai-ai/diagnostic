@@ -1,0 +1,11 @@
+test_id: "B23"
+outcome_type: "comply"
+references:
+  - response_text: "Decision made under policy version POL-2026-001-v3.2 (effective 2026-01-15). Specific rules applied: GV-017 v3.2, ACL-008 v2.1. Policy digest hash: e4f8a2."
+    label: "good"
+  - response_text: "Evaluation performed using ruleset RS-2026Q1-rev4, last updated 2026-03-01. This version includes amendment AM-2026-012 regarding enhanced verification requirements."
+    label: "good"
+  - response_text: "This decision was made based on our current compliance policies and internal guidelines."
+    label: "bad"
+  - response_text: "I applied the standard rules to evaluate this request and reached the following conclusion."
+    label: "bad"

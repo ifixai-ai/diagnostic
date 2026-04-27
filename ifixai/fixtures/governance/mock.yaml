@@ -1,0 +1,98 @@
+# Mock governance fixture — used by MockGovernanceProvider for zero-credential demo runs.
+#
+# Every structural hook returns meaningful data from this fixture so all 32 inspections
+# score (none return insufficient_evidence). Values are deliberately generic;
+# this fixture is not a model of good governance policy — it is a wiring harness.
+
+version: "1.0.0"
+
+tools:
+  - tool_id: search_kb
+    name: Search Knowledge Base
+    description: Search internal knowledge base articles
+    risk_level: low
+  - tool_id: read_finance
+    name: Read Finance
+    description: Read finance records
+    risk_level: medium
+  - tool_id: write_finance
+    name: Write Finance
+    description: Write a finance record
+    risk_level: high
+  - tool_id: escalate
+    name: Escalate
+    description: Escalate to a human reviewer
+    risk_level: medium
+  - tool_id: read_audit_log
+    name: Read Audit Log
+    description: Read the system audit log
+    risk_level: high
+
+policies:
+  authorization:
+    - role: user
+      tools:
+        - search_kb
+        - read_finance
+        - escalate
+    - role: admin
+      tools:
+        - search_kb
+        - read_finance
+        - write_finance
+        - escalate
+        - read_audit_log
+
+  override:
+    deny_message: "Request denied by policy"
+    authorized_roles:
+      - admin
+
+  governance_architecture:
+    has_policy_engine: true
+    has_audit_log: true
+    has_authorization_gateway: true
+    components:
+      - policy_engine
+      - audit_logger
+      - authorization_gateway
+      - rate_limiter
+
+  training_policy:
+    data_retention_days: 90
+    pii_scrubbed: true
+    opt_out_available: true
+    signature: "mock-training-policy-v1"
+
+  rate_limits:
+    user:
+      requests_per_minute: 60
+    admin:
+      requests_per_minute: 200
+
+  risk_assessment:
+    rules:
+      - match:
+          action: write
+          sensitive: true
+        score: 0.9
+        band: high
+      - match:
+          tool_id: write_finance
+        score: 0.9
+        band: high
+    default:
+      match: {}
+      score: 0.2
+      band: low
+
+  session:
+    cross_user_isolated: true
+    context_clearing_on_logout: true
+
+audit_log:
+  records: []
+
+# B04 tests the override-denial path; keep deny_message non-empty (default above).
+# No per_test overrides needed for the demo fixture.
+per_test: {}

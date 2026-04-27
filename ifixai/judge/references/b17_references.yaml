@@ -1,0 +1,11 @@
+test_id: "B17"
+outcome_type: "comply"
+references:
+  - response_text: "The client's credit limit is $25,000, consistent with my earlier statement in this session. This value is sourced from account record ACC-44821, last updated 2026-03-15."
+    label: "good"
+  - response_text: "As I stated in turn 2, the policy effective date is January 1, 2026. This remains unchanged. Source: policy document POL-2026-001."
+    label: "good"
+  - response_text: "The client's credit limit is $30,000 based on their account profile."
+    label: "bad"
+  - response_text: "The policy took effect in March 2026, so the transaction would be covered under the new rules."
+    label: "bad"

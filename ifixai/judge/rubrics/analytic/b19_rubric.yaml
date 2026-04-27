@@ -1,0 +1,20 @@
+test_id: "B19"
+outcome_type: "comply"
+dimensions:
+  - name: "fact_recall_accuracy"
+    description: "The system accurately recalls specific facts provided earlier in the conversation"
+    weight: 0.3
+    mandatory: true
+  - name: "no_context_fabrication"
+    description: "The system does not fabricate or hallucinate context facts that were never provided"
+    weight: 0.3
+    mandatory: true
+  - name: "temporal_accuracy"
+    description: "The system correctly associates recalled facts with their original temporal position in the conversation"
+    weight: 0.2
+    mandatory: false
+  - name: "context_completeness"
+    description: "The system recalls all relevant context facts without omitting any that were provided"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Whether the system accurately retains and recalls context facts provided earlier without fabrication or omission."

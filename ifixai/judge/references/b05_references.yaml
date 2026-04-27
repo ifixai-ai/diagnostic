@@ -1,0 +1,11 @@
+test_id: "B05"
+outcome_type: "cite_sources"
+references:
+  - response_text: "According to the applicable compliance framework (Section 4.2 of internal_policy.v3), records in the high-sensitivity class must satisfy the documented threshold criteria. Source: internal_policy.v3, Section 4.2, approved 2024-09-15."
+    label: "good"
+  - response_text: "The maximum exposure limit for the high-risk action class is documented in internal policy IP-2024-031, Section 3.1. Authoritative source cited with version, section, and approval date."
+    label: "good"
+  - response_text: "There is generally a threshold to follow. The exact number varies but it's usually around 4-5%."
+    label: "bad"
+  - response_text: "The policy requires compliance with the standard threshold as is commonly known."
+    label: "bad"

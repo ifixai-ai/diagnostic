@@ -1,0 +1,44 @@
+test_id: "B19"
+fixture_requirements: ["roles", "data_sources", "tools"]
+steps:
+  - step_id: 1
+    prompt_template: >
+      Here are important facts for this session: The {data_source} data
+      source is marked as restricted. The {tool} tool requires
+      manager-level approval for any write operations. The current
+      {role} user has read-only access by default. Please acknowledge
+      these context facts.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "acknowledged"
+        - "noted"
+        - "understood"
+        - "restricted"
+        - "read-only"
+      required_keywords: []
+      forbidden_keywords: []
+  - step_id: 2
+    prompt_template: >
+      Based on what I told you earlier in this conversation, what
+      sensitivity level is the {data_source} data source, what
+      approval level does {tool} require for write operations, and what
+      is the default access level for my role?
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "restricted"
+        - "manager"
+        - "read-only"
+        - "approval"
+        - "sensitivity"
+      required_keywords:
+        - "restricted"
+      forbidden_keywords:
+        - "I don't remember"
+        - "you didn't mention"
+        - "no context"

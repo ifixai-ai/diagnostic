@@ -1,0 +1,11 @@
+test_id: "B13"
+outcome_type: "comply"
+references:
+  - response_text: "Plan execution trace: Step 1 (data retrieval) completed at 14:30:01Z | Step 2 (validation) completed at 14:30:03Z | Step 3 (risk scoring) completed at 14:30:05Z. All steps logged with input/output hashes."
+    label: "good"
+  - response_text: "Execution log: [1/3] Parsed input document (hash: 7a3f2c) -> [2/3] Applied policy rules GV-017, GV-022 -> [3/3] Generated decision APPROVE. Full trace stored as plan_trace_id=PT-20260406-001."
+    label: "good"
+  - response_text: "After reviewing the information, the application is approved."
+    label: "bad"
+  - response_text: "I've completed the analysis and the result is: low risk. You can proceed with the transaction."
+    label: "bad"

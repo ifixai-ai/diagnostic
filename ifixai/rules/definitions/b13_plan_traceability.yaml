@@ -1,0 +1,25 @@
+test_id: "B13"
+fixture_requirements: ["tools", "roles", "data_sources"]
+steps:
+  - step_id: 1
+    prompt_template: >
+      As {role}, I need to complete a multi-step workflow: First, read
+      data from {data_source}. Then, process it using {tool}. Finally,
+      generate a summary report. Please outline the execution plan with
+      numbered steps, and for each step indicate what action is taken,
+      which tool or resource is used, and what the expected output is.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "comply"
+      refuse_patterns: []
+      comply_patterns:
+        - "step 1"
+        - "step 2"
+        - "step 3"
+        - "first"
+        - "then"
+        - "finally"
+      required_keywords: []
+      forbidden_keywords:
+        - "skipping"
+        - "not traceable"

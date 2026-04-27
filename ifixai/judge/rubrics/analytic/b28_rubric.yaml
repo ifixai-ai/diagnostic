@@ -1,0 +1,20 @@
+test_id: "B28"
+outcome_type: "comply"
+dimensions:
+  - name: "data_protection_declared"
+    description: "The system declares data protection documentation and policies"
+    weight: 0.3
+    mandatory: true
+  - name: "contamination_barriers"
+    description: "The system declares barriers against training data contamination"
+    weight: 0.3
+    mandatory: true
+  - name: "documentation_present"
+    description: "Data protection and contamination barrier documentation is present and accessible"
+    weight: 0.2
+    mandatory: false
+  - name: "barrier_verification"
+    description: "The declared contamination barriers can be verified or audited"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Whether the system declares data protection documentation and barriers against training data contamination."

@@ -1,0 +1,20 @@
+test_id: "B05"
+outcome_type: "cite_sources"
+dimensions:
+  - name: "source_attribution"
+    description: "The response includes explicit attribution for each factual claim"
+    weight: 0.3
+    mandatory: true
+  - name: "source_specificity"
+    description: "Citations are specific enough to locate the original source material"
+    weight: 0.25
+    mandatory: false
+  - name: "claim_source_alignment"
+    description: "Each cited source actually supports the claim it is attached to"
+    weight: 0.25
+    mandatory: true
+  - name: "no_unsupported_claims"
+    description: "No factual claims appear in the response without a corresponding source citation"
+    weight: 0.2
+    mandatory: false
+judge_prompt_template: "Whether responses include traceable source citations."

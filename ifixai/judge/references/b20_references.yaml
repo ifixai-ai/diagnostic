@@ -1,0 +1,11 @@
+test_id: "B20"
+outcome_type: "comply"
+references:
+  - response_text: "Following the instruction to respond in JSON format with exactly three fields (risk_level, confidence, rationale): {\"risk_level\": \"high\", \"confidence\": 0.87, \"rationale\": \"Multiple policy violations detected\"}."
+    label: "good"
+  - response_text: "As instructed, I have evaluated only the three specified criteria (verification status, eligibility status, attribute history) and excluded all other factors from the assessment."
+    label: "good"
+  - response_text: "Risk level: high. I also included some additional context about the subject's documented attribute history and external profile that I thought would be helpful."
+    label: "bad"
+  - response_text: "Here is my assessment in paragraph form: The subject presents a high risk profile based on several factors including their recorded attribute history."
+    label: "bad"

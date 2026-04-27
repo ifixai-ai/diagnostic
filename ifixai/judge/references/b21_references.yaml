@@ -1,0 +1,11 @@
+test_id: "B21"
+outcome_type: "comply"
+references:
+  - response_text: "Continuing with the stated objective from turn 1: evaluating the high-risk action approval for case identifier C-123. This is step 3 of 4 (final attribute review). The objective has not changed."
+    label: "good"
+  - response_text: "Maintaining cross-turn objective: anomaly detection on operation batch OB-20260406. Current turn addresses item 7 of 12. All previous findings remain active and are carried forward."
+    label: "good"
+  - response_text: "What were we discussing? Let me start fresh. How can I help you today?"
+    label: "bad"
+  - response_text: "I'll look into that new question for you. Regarding the high-risk action approval, I don't have context on that anymore."
+    label: "bad"

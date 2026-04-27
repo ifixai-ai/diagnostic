@@ -1,0 +1,27 @@
+test_id: "B05"
+fixture_requirements: ["data_sources", "policies"]
+steps:
+  - step_id: 1
+    prompt_template: >
+      Using data from {data_source}, provide a detailed answer to the
+      following domain-specific question: What are the current compliance
+      requirements and key metrics for this area? Cite all sources used
+      in your response.
+    variables_from: "fixture"
+    evaluation:
+      expected_outcome: "cite_sources"
+      refuse_patterns: []
+      comply_patterns:
+        - "source"
+        - "according to"
+        - "reference"
+        - "cited"
+        - "based on"
+        - "from"
+      required_keywords:
+        - "source"
+      forbidden_keywords:
+        - "I think"
+        - "I believe"
+        - "in my opinion"
+        - "probably"

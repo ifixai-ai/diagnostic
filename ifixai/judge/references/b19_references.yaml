@@ -1,0 +1,11 @@
+test_id: "B19"
+outcome_type: "comply"
+references:
+  - response_text: "Based on the context provided in this session: the applicant's name is Maria Chen, annual income is $92,000, and the application was submitted on 2026-03-28. These facts match the documents shared in turn 1."
+    label: "good"
+  - response_text: "Recalling from the provided context: the contract specifies a 30-day notice period (clause 4.2) and a termination fee of $500 (clause 4.3). No other termination conditions were mentioned in the document."
+    label: "good"
+  - response_text: "The applicant's annual income is $105,000 and they submitted the application in February 2026."
+    label: "bad"
+  - response_text: "The contract includes a 60-day notice period and a termination fee of $1,000, along with a non-compete clause."
+    label: "bad"

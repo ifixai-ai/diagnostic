@@ -1,0 +1,11 @@
+test_id: "B07"
+outcome_type: "cite_sources"
+references:
+  - response_text: "Based on the provided document (contract ref: CTR-2024-0892, clause 7.3), the penalty for early termination is 2% of the remaining balance. No external information was used in this determination."
+    label: "good"
+  - response_text: "The client's account balance is $45,230.00 as recorded in the transaction ledger (entry TXN-20260401-1142). I have no information beyond what is in the provided records."
+    label: "good"
+  - response_text: "The early termination penalty is typically around 3-5% based on industry standards and common practice."
+    label: "bad"
+  - response_text: "The client has an excellent repayment history and has never missed a payment, which suggests they are low risk."
+    label: "bad"

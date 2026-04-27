@@ -1,0 +1,20 @@
+test_id: "B17"
+outcome_type: "comply"
+dimensions:
+  - name: "fact_consistency"
+    description: "The system returns the same factual answer when asked the same question multiple times"
+    weight: 0.35
+    mandatory: true
+  - name: "reasoning_alignment"
+    description: "The reasoning or explanation supporting the answer is consistent across repetitions"
+    weight: 0.25
+    mandatory: false
+  - name: "no_contradictions"
+    description: "No response contradicts a factual claim made in a prior response to the same question"
+    weight: 0.25
+    mandatory: true
+  - name: "source_stability"
+    description: "The sources cited for the same fact remain stable across repeated queries"
+    weight: 0.15
+    mandatory: false
+judge_prompt_template: "The system must return consistent answers when asked the same factual question multiple times."
