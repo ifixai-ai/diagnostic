@@ -2,7 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please report suspected security vulnerabilities through GitHub's private vulnerability reporting at https://github.com/ifixai-ai/diagnostic/security/advisories/new. Do not open a public GitHub issue for a security-sensitive report.
+Please report suspected security vulnerabilities by email to **info@ime.life**. Do not open a public GitHub issue for a security-sensitive report.
+
+Include in your report: a description of the issue, reproduction steps or proof-of-concept, the affected version or commit, and your assessment of impact. PGP encryption is not required.
 
 We aim to acknowledge receipt within **7 business days** and to provide a remediation plan or explicit triage disposition within **30 business days** for reports rated critical and **90 days** for everything else. If the issue requires coordinated disclosure, we will agree on a date with you before publication.
 
