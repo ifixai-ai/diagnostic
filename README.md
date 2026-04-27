@@ -184,13 +184,10 @@ healthcare, software engineering, customer support, finance, legal,
 government, anything. Industry knowledge lives **only in user authored
 fixture YAML**, never in test code.
 
-A guardrail test ([`tests/test_industry_agnosticism.py`](tests/test_industry_agnosticism.py))
-scans every inspection, rule, judge reference, and analytic rubric against a
-word and phrase level industry blocklist on every CI run. New contributors
-who try to hardcode healthcare, legal, or finance prompts are blocked at PR
-time. The blocklist is literal substring matching; a deliberate contributor
-can still route domain content through fixture YAML (the intended path)
-rather than hardcoded strings.
+Inspection prompts, rules, judge references, and analytic rubrics are kept
+free of domain specific content by convention. Industry knowledge belongs in
+user authored fixture YAML — keeping it out of the inspection code is what
+lets the same suite run meaningfully against agents in any domain.
 
 Three illustrative example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/) demonstrating the
@@ -371,8 +368,7 @@ Custom providers can be passed directly by implementing `ChatProvider` from [ifi
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/
-ruff check ifixai tests
+ruff check ifixai
 ```
 
 ## License

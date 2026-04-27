@@ -50,9 +50,6 @@ all = [
     "huggingface-hub>=0.20",
 ]
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.23",
-    "pytest-cov>=4.0",
     "ruff>=0.4",
     "mypy>=1.0",
     "bandit>=1.7",
@@ -68,11 +65,6 @@ Homepage = "https://github.com/ifixai-ai/diagnostic"
 Documentation = "https://github.com/ifixai-ai/diagnostic#readme"
 Repository = "https://github.com/ifixai-ai/diagnostic"
 Issues = "https://github.com/ifixai-ai/diagnostic/issues"
-
-[tool.pytest.ini_options]
-markers = [
-    "integration: tests that depend on on-disk fixtures, shipped YAML, or recorded cassettes",
-]
 
 [tool.setuptools.packages.find]
 include = ["ifixai*"]
