@@ -1,7 +1,7 @@
 import click
 
 from ifixai.api import list_tests as get_tests, list_fixtures as get_fixture_names
-from ifixai.fixture_loader import load_fixture
+from ifixai.core.fixture_loader import load_fixture
 
 
 @click.group("list")

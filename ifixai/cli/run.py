@@ -12,30 +12,24 @@ from pathlib import Path
 
 import click
 
-from ifixai import __version__ as IFIXAI_VERSION
-from ifixai.cli._branding import (
-    CategoryProgress,
-    print_startup_banner,
-    supports_color,
-)
-from ifixai.cli._imecore_prompt import print_imecore_conclusion
 from ifixai.cli.orchestrator import (
     _build_judge_config,
     _eval_mode_declaration,
     _lookup_env_api_key,
+    _print_inconclusive_summary,
     _print_insufficient_evidence_summary,
     _resolve_judge_label,
     _resolve_standard_eval_mode,
     execute_tests,
 )
 from ifixai.cli.reports import save_reports
-from ifixai.concurrency import (
+from ifixai.core.concurrency import (
     ConcurrencyGovernor,
     MAX_CONCURRENCY_LIMIT,
 )
-from ifixai.connection import test_connection as _test_conn
-from ifixai.context import collect_context
-from ifixai.discovery import (
+from ifixai.core.connection import test_connection as _test_conn
+from ifixai.core.context import collect_context
+from ifixai.core.discovery import (
     build_fixture_from_discovery,
     discover_system,
     display_discovery_summary,
@@ -43,11 +37,11 @@ from ifixai.discovery import (
 from ifixai.evaluation.manifest import build_manifest, write_manifest
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
-from ifixai.fixture_loader import load_fixture, resolve_fixture_path
-from ifixai.tests.registry import SPEC_BY_ID
+from ifixai.core.fixture_loader import load_fixture, resolve_fixture_path
+from ifixai.harness.registry import SPEC_BY_ID
 from ifixai.utils.fixture_digest import compute_fixture_digest
-from ifixai.utils.rubric_digest import compute_rubric_digests_for_directory
-from ifixai.grounding import GroundingMode, compose_system_prompt
+from ifixai.utils.rubric_digest import compute_rubric_digests_for_tests_layout
+from ifixai.core.grounding import GroundingMode, compose_system_prompt
 from ifixai.providers.resolver import resolve_provider
 from ifixai.quick_build import (
     collect_quick_build_context,
@@ -56,7 +50,7 @@ from ifixai.quick_build import (
     generate_fixture_from_profile,
     save_fixture as qb_save,
 )
-from ifixai.types import (
+from ifixai.core.types import (
     EvaluationMode,
     EvaluationPipelineConfig,
     ProviderConfig,
@@ -67,9 +61,7 @@ from ifixai.wizard import generate_fixture_from_wizard, run_wizard
 DEFAULT_CONCURRENCY = 5
 CONCURRENCY_ENV_VAR = "IFIXAI_CONCURRENCY"
 
-_ANALYTIC_RUBRICS_DIR: Path = (
-    Path(__file__).resolve().parent.parent / "judge" / "rubrics" / "analytic"
-)
+_TESTS_DIR: Path = Path(__file__).resolve().parent.parent / "inspections"
 
 PROVIDER_CHOICES = [
     "mock",
@@ -394,14 +386,6 @@ def _print_concurrency_banner(resolved: int) -> None:
     "accept a seed will record seed_supported_by_provider=false in the "
     "manifest; the seed is still recorded.",
 )
-@click.option(
-    "--quiet",
-    "-q",
-    is_flag=True,
-    default=False,
-    help="Suppress the startup banner, in-place progress bars, and the post-run "
-    "iMe Core conclusion. Stdout still contains scores so CI gates keep working.",
-)
 def run(
     provider: str | None,
     api_key: str | None,
@@ -434,10 +418,8 @@ def run(
     sut_temperature: float,
     sut_seed: int | None,
     grounding: str,
-    quiet: bool,
 ) -> None:
     """Run ifixai against a target AI assistant."""
-    print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
     _print_concurrency_banner(resolved_concurrency)
     concurrency_governor = ConcurrencyGovernor(resolved_concurrency)
@@ -853,26 +835,6 @@ def run(
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    cat_progress: CategoryProgress | None = None
-    progress_cb = None
-    if not quiet and not test and supports_color():
-        from ifixai.tests.registry import ALL_SPECS, STRATEGIC_TESTS
-
-        targeted = (
-            [s for s in ALL_SPECS if s.test_id in STRATEGIC_TESTS]
-            if strategic
-            else list(ALL_SPECS)
-        )
-        totals: dict = {}
-        for s in targeted:
-            cat = getattr(s, "category", None)
-            if cat is not None:
-                totals[cat] = totals.get(cat, 0) + 1
-        cat_progress = CategoryProgress.from_totals(totals)
-        cat_progress.start()
-        progress_cb = _make_category_progress_callback(cat_progress)
-
     result = asyncio.run(
         execute_tests(
             provider=provider,
@@ -892,12 +854,8 @@ def run(
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
             self_judged=(eval_mode == "self"),
-            progress_callback=progress_cb,
         )
     )
-
-    if cat_progress is not None:
-        cat_progress.finalize()
 
     if result is None:
         sys.exit(1)
@@ -911,17 +869,7 @@ def run(
         click.echo(f"  Strategic Score:  {redacted}")
         click.echo(f"  Passed:           {redacted}")
     else:
-        score_line = f"  Overall Score:    {result.overall_score:.1%}"
-        if (
-            result.overall_score is not None
-            and min_score is not None
-            and result.overall_score < min_score
-        ):
-            score_line += click.style(
-                f" (Score {result.overall_score:.1%} is below minimum {min_score:.1%})",
-                fg="red",
-            )
-        click.echo(score_line)
+        click.echo(f"  Overall Score:    {result.overall_score:.1%}")
         click.echo(f"  Grade:            {result.grade.value}")
         click.echo(f"  Strategic Score:  {result.strategic_score:.1%}")
         verdict = (
@@ -932,9 +880,10 @@ def run(
         click.echo(f"  Passed:           {verdict}")
     click.echo()
 
+    _print_inconclusive_summary(result)
     _print_insufficient_evidence_summary(result)
+    click.echo()
 
-    click.echo(click.style("Access your Full Report here:", bold=True))
     save_reports(result, output, report_format)
 
     run_mode = RunMode.FULL if profile.lower() == "full" else RunMode.STANDARD
@@ -968,7 +917,7 @@ def run(
         judge_models=[],
         normalizer_version=NORMALIZER_VERSION,
         test_versions=test_versions,
-        rubric_hashes=compute_rubric_digests_for_directory(_ANALYTIC_RUBRICS_DIR),
+        rubric_hashes=compute_rubric_digests_for_tests_layout(_TESTS_DIR),
         fixture_digest=compute_fixture_digest(resolved_fixture_path),
         mode_filter=(
             [test] if test else (["strategic"] if strategic else ["all"])
@@ -978,9 +927,12 @@ def run(
         b14_seed=b14_seed if b14_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
     )
-    write_manifest(manifest, Path(reliability_out))
-
-    print_imecore_conclusion(quiet=quiet)
+    manifest_path = write_manifest(manifest, Path(reliability_out))
+    click.echo()
+    click.echo(click.style("Run manifest", bold=True))
+    click.echo(f"  Mode:     {manifest.mode.value}")
+    click.echo(f"  Run ID:   {manifest.run_id}")
+    click.echo(f"  Manifest: {manifest_path}")
 
     if result.overall_score is None:
         click.echo(
@@ -991,17 +943,13 @@ def run(
         )
         sys.exit(2)
     if result.overall_score < min_score:
+        click.echo(
+            click.style(
+                f"Score {result.overall_score:.1%} is below minimum {min_score:.1%}",
+                fg="red",
+            )
+        )
         sys.exit(2)
-
-
-def _make_category_progress_callback(progress: "CategoryProgress"):
-    def _cb(bid: str, index: int, total: int, bench_result: object) -> None:
-        category = getattr(bench_result, "category", None)
-        passing = bool(getattr(bench_result, "passing", False))
-        if category is not None:
-            progress.record(category, passing)
-    return _cb
-
 
 def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
     """Run the interactive guided mode to collect provider configuration.

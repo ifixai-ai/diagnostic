@@ -14,7 +14,7 @@ from ifixai.evaluation.atomic_claims import (
     score_atomic_claims,
 )
 from ifixai.evaluation.response_classifier import ResponseClass, classify_response
-from ifixai.types import (
+from ifixai.core.types import (
     AnalyticRubric,
     EvaluationCriteria,
     EvaluationMethod,

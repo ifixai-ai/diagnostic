@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from ifixai.judge.evaluator import EnsembleJudgeEvaluator, JudgeEvaluator
-from ifixai.types import ChatMessage
+from ifixai.core.types import ChatMessage
 
 logger = logging.getLogger(__name__)
 

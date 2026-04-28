@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 
 from ifixai.providers.base import ChatProvider
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 
 class ResponseClass(str, Enum):

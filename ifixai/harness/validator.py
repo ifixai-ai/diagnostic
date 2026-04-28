@@ -1,0 +1,84 @@
+import re
+from pathlib import Path
+
+import yaml
+
+
+_TESTS_DIR = Path(__file__).parent.parent / "inspections"
+_REQUIRED_ARTIFACTS: tuple[str, ...] = (
+    "definition.yaml",
+    "rubric.yaml",
+    "references.yaml",
+    "runner.py",
+)
+_FOLDER_NAME_PATTERN = re.compile(r"^b(0[1-9]|[12][0-9]|3[0-2])_[a-z0-9_]+$")
+_CORPUS_TEST_IDS: frozenset[str] = frozenset({"B12", "B14", "B30"})
+
+
+class LayoutValidationError(Exception):
+    pass
+
+
+def _iter_test_folders(tests_dir: Path) -> list[Path]:
+    if not tests_dir.is_dir():
+        raise LayoutValidationError(f"inspections directory missing: {tests_dir}")
+    return sorted(p for p in tests_dir.iterdir() if p.is_dir() and _FOLDER_NAME_PATTERN.match(p.name))
+
+
+def _validate_folder(folder: Path) -> str:
+    for artifact in _REQUIRED_ARTIFACTS:
+        path = folder / artifact
+        if not path.is_file():
+            raise LayoutValidationError(
+                f"test folder {folder.name!r} is missing required artifact {artifact!r}"
+            )
+
+    definition_path = folder / "definition.yaml"
+    try:
+        raw = yaml.safe_load(definition_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise LayoutValidationError(
+            f"definition.yaml in {folder.name!r} is not valid YAML: {exc}"
+        ) from exc
+    if not isinstance(raw, dict) or "test_id" not in raw:
+        raise LayoutValidationError(
+            f"definition.yaml in {folder.name!r} missing required key 'test_id'"
+        )
+    test_id = raw["test_id"]
+
+    folder_nn = folder.name[1:3]
+    expected_id = f"B{folder_nn}"
+    if test_id != expected_id:
+        raise LayoutValidationError(
+            f"test folder {folder.name!r} declares test_id={test_id!r} "
+            f"but folder name implies {expected_id!r}"
+        )
+
+    corpus_path = folder / "corpus.yaml"
+    has_corpus_file = corpus_path.is_file()
+    expects_corpus = test_id in _CORPUS_TEST_IDS
+    if expects_corpus and not has_corpus_file:
+        raise LayoutValidationError(
+            f"test {test_id!r} requires corpus.yaml but it is missing in {folder.name!r}"
+        )
+    if has_corpus_file and not expects_corpus:
+        raise LayoutValidationError(
+            f"test {test_id!r} unexpectedly has corpus.yaml in {folder.name!r}"
+        )
+
+    return test_id
+
+
+def validate_layout(tests_dir: Path | None = None) -> list[str]:
+    root = tests_dir or _TESTS_DIR
+    seen_ids: dict[str, str] = {}
+    validated: list[str] = []
+    for folder in _iter_test_folders(root):
+        test_id = _validate_folder(folder)
+        if test_id in seen_ids:
+            raise LayoutValidationError(
+                f"duplicate test_id {test_id!r}: folders {seen_ids[test_id]!r} and {folder.name!r}"
+            )
+        seen_ids[test_id] = folder.name
+        validated.append(test_id)
+    return validated

@@ -1,12 +1,23 @@
 
 import click
 
-from ifixai.fixture_loader import validate_fixture
+from ifixai.core.fixture_loader import validate_fixture
+from ifixai.harness.validator import LayoutValidationError, validate_layout
 
 
 @click.command()
-@click.argument("path", type=click.Path(exists=True))
-def validate(path: str) -> None:
+@click.argument("path", type=click.Path(exists=True), required=False)
+def validate(path: str | None) -> None:
+    if path is None:
+        try:
+            validated_ids = validate_layout()
+        except LayoutValidationError as exc:
+            click.echo(click.style(f"Layout validation failed: {exc}", fg="red"))
+            raise SystemExit(1) from exc
+        click.echo(click.style(f"Layout valid: {len(validated_ids)} tests", fg="green"))
+        for test_id in validated_ids:
+            click.echo(f"  - {test_id}")
+        return
 
     errors = validate_fixture(path)
 

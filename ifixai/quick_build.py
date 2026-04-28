@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 import click
 import yaml
 
-from ifixai.discovery import generate_test_cases
-from ifixai.types import (
+from ifixai.core.discovery import generate_test_cases
+from ifixai.core.types import (
     ContextProfile,
     DataSource,
     Fixture,

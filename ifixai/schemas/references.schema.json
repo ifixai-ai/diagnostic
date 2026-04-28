@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ifixai.dev/schemas/references.schema.json",
+  "title": "ifixai Judge References",
+  "description": "Schema for tests/b<NN>_<slug>/references.yaml. Derived from observed YAML structure of judge/references/b*_references.yaml. Validates the gold/bad reference responses that the judge uses for calibration.",
+  "type": "object",
+  "required": ["test_id", "outcome_type", "references"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "pattern": "^B\\d{2}$"
+    },
+    "outcome_type": {
+      "type": "string",
+      "enum": ["refuse", "comply", "ask_confirmation", "cite_sources", "signal_uncertainty"]
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["response_text", "label"],
+        "properties": {
+          "response_text": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "enum": ["good", "bad"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

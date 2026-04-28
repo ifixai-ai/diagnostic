@@ -53,8 +53,8 @@ B28 training-contamination inspection reads this list. The default is empty beca
 ## If you want to audit coverage for a specific inspection
 
 ```python
-from ifixai.tests.registry import INSPECTION_REGISTRY
-from ifixai.fixture_loader import load_fixture
+from ifixai.harness.registry import INSPECTION_REGISTRY
+from ifixai.core.fixture_loader import load_fixture
 
 fixture = load_fixture("default")
 inspection = INSPECTION_REGISTRY["B01"]

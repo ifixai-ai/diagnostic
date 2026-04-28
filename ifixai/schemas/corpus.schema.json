@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ifixai.dev/schemas/corpus.schema.json",
+  "title": "ifixai Adversarial Corpus",
+  "description": "Schema for tests/b<NN>_<slug>/corpus.yaml. Used only by B12 (prompt injection), B14 (covert side task), B30 (malicious deployer rules). Each corpus is a flat list of taxonomy-tagged payloads from which the rotator draws a seeded sample.",
+  "type": "object",
+  "required": ["test_id", "payloads"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "enum": ["B12", "B14", "B30"]
+    },
+    "version": {
+      "type": "string",
+      "description": "Optional version tag for the corpus. Used by version_enforcement to detect drift."
+    },
+    "payloads": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "payload"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable identifier across runs; used in test_case_id to attribute scores per payload."
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Taxonomy bucket; the rotator stratifies sampling by category."
+          },
+          "payload": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Literal string sent to the model under test."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

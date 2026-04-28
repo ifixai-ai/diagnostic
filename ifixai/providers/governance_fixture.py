@@ -1,30 +1,10 @@
-"""Governance fixture — canonical schema for the structural policy surface
-that providers (mock + reference) expose to tests.
+"""Governance fixture schema — the structural policy surface that providers
+expose to tests.
 
 A single `governance.yaml` per run drives every `ChatProvider` structural
-method. This keeps tests deterministic, reproducible, and makes the
-expected enterprise policy surface **explicit and auditable** — the user
-reads exactly what the test thinks "good governance" looks like.
-
-Schema is flat and discoverable:
-
-    version: "1.0.0"
-    tools: [...]
-    policies:
-      authorization: [...]
-      override: {...}
-      governance_architecture: {...}
-      training_policy: {...}
-      rate_limits: {...}
-      risk_assessment: {...}
-      session: {...}
-    audit_log: {records: [...]}
-    per_test: {BXX: {...overrides}}  # optional
-
-`per_test` lets a single fixture mutate specific fields for a single
-test (e.g. B04 wants `override.deny_message` to be empty to test
-failure mode). Overrides are shallow-merged into the base `policies`
-block when the provider is queried in a test's context.
+method. `per_test` lets a fixture mutate specific fields for one test;
+overrides are shallow-merged into `policies` when the provider is queried
+in that test's context.
 """
 from __future__ import annotations
 
@@ -37,7 +17,6 @@ class AuthorizationRule(BaseModel):
     model_config = {"frozen": True}
 
     role: str
-    # List of tool_ids. The literal ["*"] means "all tools".
     tools: tuple[str, ...]
 
 
@@ -75,7 +54,6 @@ class RateLimitRule(BaseModel):
 class RiskAssessmentRule(BaseModel):
     model_config = {"frozen": True}
 
-    # Pattern match — keys that must all be present on the request dict.
     match: dict[str, Any] = Field(default_factory=dict)
     score: float = 0.0
     band: str = "low"
@@ -116,8 +94,8 @@ class PoliciesBlock(BaseModel):
 
 
 class AuditLog(BaseModel):
-    # NOT frozen — the mock provider appends to `records` as tests
-    # exercise `invoke_tool`.
+    # Intentionally not frozen: the mock provider appends to `records` as
+    # tests exercise `invoke_tool`.
     records: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -132,24 +110,18 @@ class GovernanceTool(BaseModel):
 
 
 class GovernanceFixture(BaseModel):
-    """Complete structural policy surface for a test run."""
-
     version: str = "1.0.0"
     tools: tuple[GovernanceTool, ...] = Field(default_factory=tuple)
     policies: PoliciesBlock = Field(default_factory=PoliciesBlock)
     audit_log: AuditLog = Field(default_factory=AuditLog)
-
-    # Optional per-test overrides — shallow-merged into `policies` when
-    # the provider is queried under test `BXX`.
     per_test: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     def policies_for(self, test_id: Optional[str]) -> PoliciesBlock:
-        """Return the effective policies block for a given test.
+        """Return the effective policies block for `test_id`.
 
-        When `test_id` is in `per_test`, those overrides are
-        shallow-merged on top of the base policies block and a fresh
-        `PoliciesBlock` is returned. When there is no override or
-        `test_id is None`, returns the base block unchanged.
+        Overrides from `per_test[test_id]` are shallow-merged onto the
+        base block. When there is no override, returns the base block
+        unchanged.
         """
         if not test_id or test_id not in self.per_test:
             return self.policies
@@ -164,7 +136,6 @@ class GovernanceFixture(BaseModel):
 
     @classmethod
     def load(cls, path: str) -> "GovernanceFixture":
-        """Load a governance fixture from a YAML file on disk."""
         import yaml
 
         with open(path, encoding="utf-8") as fh:

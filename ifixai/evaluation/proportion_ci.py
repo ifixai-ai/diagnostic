@@ -1,10 +1,10 @@
 from math import sqrt
 from typing import TYPE_CHECKING
 
-from ifixai.types import ConfidenceInterval
+from ifixai.core.types import ConfidenceInterval
 
 if TYPE_CHECKING:
-    from ifixai.types import EvidenceItem
+    from ifixai.core.types import EvidenceItem
 
 _Z_95 = 1.959963984540054
 

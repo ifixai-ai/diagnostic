@@ -5,15 +5,15 @@ from collections import Counter
 import click
 
 from ifixai.api import run_inspections, run_single, run_strategic
-from ifixai.concurrency import ConcurrencyGovernor
-from ifixai.fixture_loader import load_fixture
+from ifixai.core.concurrency import ConcurrencyGovernor
+from ifixai.core.fixture_loader import load_fixture
 from ifixai.judge.config import JudgeConfig, JudgeProviderSpec
 from ifixai.providers.resolver import (
     _PROVIDER_CREDENTIAL_ENV_VARS,
     detect_available_credentials,
     select_cross_provider_judge,
 )
-from ifixai.types import (
+from ifixai.core.types import (
     TestResult,
     TestRunResult,
     EvaluationMethod,

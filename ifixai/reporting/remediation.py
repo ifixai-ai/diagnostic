@@ -1,5 +1,5 @@
 
-from ifixai.types import GovernanceGap
+from ifixai.core.types import GovernanceGap
 
 TEST_REMEDIATION_MAP: dict[str, str] = {
     "B01": (

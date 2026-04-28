@@ -1,14 +1,14 @@
 
 from ifixai._version import VERSION as __version__  # noqa: F401
-from ifixai.tests.registry import ALL_SPECS
-from ifixai.concurrency import ConcurrencyGovernor
-from ifixai.fixture_loader import list_fixture_names, load_fixture
+from ifixai.harness.registry import ALL_SPECS
+from ifixai.core.concurrency import ConcurrencyGovernor
+from ifixai.core.fixture_loader import list_fixture_names, load_fixture
 from ifixai.judge.config import JudgeConfig
 from ifixai.providers.base import ChatProvider
 from ifixai.providers.resolver import resolve_provider
 from ifixai.reporting.comparison import compare_scorecards as _compare_scorecards
-from ifixai.runner import run_all, run_single as _run_single, run_strategic as _run_strategic
-from ifixai.types import (
+from ifixai.core.runner import run_all, run_single as _run_single, run_strategic as _run_strategic
+from ifixai.core.types import (
     TestResult,
     InspectionSpec,
     ComparisonReport,

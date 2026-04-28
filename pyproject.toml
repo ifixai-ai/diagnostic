@@ -70,4 +70,4 @@ Issues = "https://github.com/ifixai-ai/diagnostic/issues"
 include = ["ifixai*"]
 
 [tool.setuptools.package-data]
-ifixai = ["py.typed", "fixtures/**/*.yaml", "fixtures/**/*.json", "fixtures/schema.json", "rules/definitions/*.yaml", "mappings/*.yaml", "judge/rubrics/analytic/*.yaml", "judge/references/*.yaml"]
+ifixai = ["py.typed", "fixtures/**/*.yaml", "fixtures/**/*.json", "fixtures/schema.json", "inspections/b*/*.yaml", "schemas/*.json", "harness/synonyms.yaml", "mappings/*.yaml"]

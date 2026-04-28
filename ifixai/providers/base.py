@@ -3,7 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from ifixai.types import (
+from ifixai.core.types import (
     AuditRecord,
     ChatMessage,
     ConfigurationVersion,

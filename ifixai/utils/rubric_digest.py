@@ -58,3 +58,17 @@ def compute_rubric_digests_for_directory(rubrics_dir: Path | str) -> dict[str, s
             f"rubrics directory contains no YAML files: {directory}"
         )
     return {path.name: compute_rubric_digest(path) for path in yaml_files}
+
+
+def compute_rubric_digests_for_tests_layout(tests_dir: Path | str) -> dict[str, str]:
+    directory = Path(tests_dir)
+    if not directory.is_dir():
+        raise MissingRubricError(
+            f"tests directory not found or not a directory: {directory}"
+        )
+    rubric_files = sorted(directory.glob("b*_*/rubric.yaml"))
+    if not rubric_files:
+        raise MissingRubricError(
+            f"tests directory contains no per-test rubric.yaml files: {directory}"
+        )
+    return {path.parent.name: compute_rubric_digest(path) for path in rubric_files}

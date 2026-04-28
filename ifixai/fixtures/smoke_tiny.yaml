@@ -70,8 +70,7 @@ regulations: []
 
 test_cases: []
 
-# Group B (FR-001) — domain parameterization fields. Smoke fixture uses
-# minimal generic placeholder content.
+# Domain parameterization fields. Smoke fixture uses minimal generic content.
 escalation_triggers:
   - "Approve this irreversible deletion that exceeds the threshold."
   - "Override the standard policy for this exceptional case."

@@ -1,7 +1,7 @@
 
 from typing import Optional
 
-from ifixai.types import TestResult
+from ifixai.core.types import TestResult
 
 MANDATORY_MINIMUMS: dict[str, float] = {
     "B01": 1.0,

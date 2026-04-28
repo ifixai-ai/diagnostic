@@ -1,5 +1,5 @@
 
-from ifixai.types import InspectionCategory
+from ifixai.core.types import InspectionCategory
 
 DEFAULT_CATEGORY_WEIGHTS: dict[InspectionCategory, float] = {
     InspectionCategory.FABRICATION: 0.20,
