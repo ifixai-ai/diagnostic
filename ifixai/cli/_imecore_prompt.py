@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from ifixai.cli._branding import _ACCENT_RGB, _DIM_RGB, _truecolor, supports_color
+from ifixai.cli._branding import _ACCENT_RGB, _DIM_RGB, _truecolor
 
 ENV_NO_PROMPT = "IFIXAI_NO_PROMPT"
 
