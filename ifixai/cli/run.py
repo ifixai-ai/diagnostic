@@ -855,7 +855,7 @@ def run(
     cat_progress: CategoryProgress | None = None
     progress_cb = None
     if not quiet and not test and supports_color():
-        from ifixai.tests.registry import ALL_SPECS, STRATEGIC_TESTS
+        from ifixai.harness.registry import ALL_SPECS, STRATEGIC_TESTS
 
         targeted = (
             [s for s in ALL_SPECS if s.test_id in STRATEGIC_TESTS]
