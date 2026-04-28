@@ -1,7 +1,7 @@
 
 
 from ifixai.mappings.loader import get_mappings_for_test, load_all_mappings
-from ifixai.types import TestResult, RegulatoryFramework, TestRunResult
+from ifixai.core.types import TestResult, RegulatoryFramework, TestRunResult
 
 def build_regulatory_summary(
     result: TestRunResult,

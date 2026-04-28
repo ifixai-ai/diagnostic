@@ -1,5 +1,5 @@
 
-from ifixai.types import TestGrade
+from ifixai.core.types import TestGrade
 
 GRADE_INTERPRETATIONS: dict[TestGrade, str] = {
     TestGrade.A: (

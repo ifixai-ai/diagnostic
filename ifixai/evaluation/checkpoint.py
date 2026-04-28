@@ -1,19 +1,17 @@
-"""Run-level checkpoint + resume (T025).
+"""Run-level checkpoint + resume.
 
-A run's state (which tests have finished, with what results) is
-written to disk after each test completes. If the user re-invokes
-the CLI with the same config + seed + corpus versions, we load the
-checkpoint, skip tests that already ran, and execute only the rest.
+A run's state (which tests have finished, with what results) is written
+to disk after each test completes. Re-invoking the CLI with the same
+config + seed + corpus versions loads the checkpoint and executes only
+the remaining tests.
 
 Checkpoint safety:
-- Keyed by `run_id` from the manifest. `run_id` is a SHA-256 over every
-  field that would invalidate reproducibility (capabilities, seed, corpus
-  versions, scoring_logic_version, model, judges, fixture). Two runs with
-  incompatible configs get different `run_id`s, so a stale checkpoint can
-  never pollute a fresh run.
-- Resume only skips tests whose stored result has
-  `is_inconclusive=False` and no `error_message`. Everything else is
-  re-executed.
+- Keyed by `run_id` from the manifest, a SHA-256 over every field that
+  would invalidate reproducibility (capabilities, seed, corpus versions,
+  scoring_logic_version, model, judges, fixture). Two runs with
+  incompatible configs get different `run_id`s, so a stale checkpoint
+  cannot pollute a fresh run.
+- Resume re-executes any cached result that has an `error_message`.
 """
 from __future__ import annotations
 
@@ -23,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from ifixai.evaluation.manifest import RunManifest
-from ifixai.types import TestResult
+from ifixai.core.types import TestResult
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +31,6 @@ def _checkpoint_path(runs_root: Path, run_id: str) -> Path:
 
 
 def load_checkpoint(runs_root: Path, run_id: str) -> dict[str, TestResult]:
-    """Return {test_id: TestResult} from disk, or {} if none."""
     path = _checkpoint_path(runs_root, run_id)
     if not path.exists():
         return {}
@@ -64,11 +61,8 @@ def save_checkpoint(
     run_id: str,
     results: dict[str, TestResult],
 ) -> Path:
-    """Atomically persist {test_id: TestResult} to disk.
-
-    Writes to a sibling `.tmp` file first, then renames — guarantees the
-    checkpoint is never half-written if the process is killed mid-write.
-    """
+    """Persist atomically: writes to a sibling `.tmp` file then renames,
+    so the checkpoint is never half-written if the process dies mid-write."""
     path = _checkpoint_path(runs_root, run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -85,7 +79,6 @@ def save_checkpoint(
 
 
 def clear_checkpoint(runs_root: Path, run_id: str) -> bool:
-    """Remove the checkpoint for a run. Returns True when a file was deleted."""
     path = _checkpoint_path(runs_root, run_id)
     if not path.exists():
         return False
@@ -94,8 +87,6 @@ def clear_checkpoint(runs_root: Path, run_id: str) -> bool:
 
 
 def checkpoint_path(runs_root: Path, run_id: str) -> Path:
-    """Public accessor — used by the CLI and by docs to show the user
-    WHERE resume state lives so they can inspect / delete it manually."""
     return _checkpoint_path(runs_root, run_id)
 
 
@@ -104,54 +95,42 @@ def describe_resume(
     manifest: RunManifest,
     all_test_ids: list[str],
 ) -> tuple[dict[str, TestResult], list[str]]:
-    """Return (cached_results, tests_still_to_run) for a run.
-
-    Used by the CLI to show the user a clear "X of Y tests already
-    have results from a previous run with this exact config; resuming
-    from the remaining Z" message before doing any work.
-    """
     cached = load_checkpoint(runs_root, manifest.run_id)
     remaining = [b for b in all_test_ids if b not in cached]
     return cached, remaining
 
 
 class BlockedInspectionError(RuntimeError):
-    """Raised by preflight when `--eval-mode self` hits a inspection that forbids
-    self-judging (e.g. B07, B10, B12, B14, B30).
+    """Raised by preflight when `--eval-mode self` hits a inspection that
+    forbids self-judging.
 
-    The run is aborted before any test executes. The message includes
-    the exact test IDs and how to proceed (pass `--skip <ids>` or
-    switch to `--eval-mode semantic/full` with an external judge)."""
+    The run is aborted before any test executes. The message tells the
+    user to switch to an external judge via `--eval-mode semantic|full`
+    or to target only the allowed inspections via `--test <id>`."""
 
     def __init__(self, blocked: list[str]) -> None:
         self.blocked = sorted(blocked)
         super().__init__(
-            "The following inspections forbid self-judging because they measure "
-            "behaviors the model itself is suspected of exhibiting:\n  "
+            "The following inspections forbid self-judging because they "
+            "measure behaviors the model itself is suspected of exhibiting:\n  "
             + ", ".join(self.blocked)
-            + "\n\nTo proceed, either:\n"
-              "  1. Switch to an external judge, e.g.:\n"
-              "     --eval-mode semantic --judge-provider <provider> "
+            + "\n\nTo proceed:\n"
+              "  Switch to an external judge, e.g.:\n"
+              "    --eval-mode semantic --judge-provider <provider> "
               "--judge-model <model>\n"
-              "  2. Skip these inspections: --skip " + ",".join(self.blocked) + "\n"
-              "\nAny tests that already completed in a previous run with "
-              "the same config are preserved and will be skipped on resume."
+              "  Or run only the allowed inspections via repeated --test <id>.\n"
+              "\nAny tests already completed in a previous run with the "
+              "same config are preserved and will be skipped on resume."
         )
 
 
 def preflight_eval_mode(
     eval_mode: str,
-    inspection_specs: list,  # list[InspectionSpec]
+    inspection_specs: list,
     skip: Optional[list[str]] = None,
 ) -> None:
-    """Raise `BlockedInspectionError` if `--eval-mode self` hits a forbidden inspection.
-
-    This is called BEFORE any test runs so the user doesn't wait
-    through half a suite before hitting a blocking inspection. The error
-    message tells them exactly how to restart via `--skip` and the
-    checkpoint layer preserves any work already done under the same
-    `run_id`.
-    """
+    """Raise `BlockedInspectionError` if `--eval-mode self` hits a forbidden
+    inspection. Called before any test runs so the user fails fast."""
     if eval_mode != "self":
         return
     skip_set = set(skip or [])

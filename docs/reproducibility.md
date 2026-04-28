@@ -22,7 +22,7 @@ This produces a digest that is:
 
 The algorithm is pinned. Any future change is a breaking change to the manifest format and requires a new schema version.
 
-The all-zero sentinel (`"0" * 64`) is rejected at model-validation time and by a CI guardrail (`tests/test_manifest_digest.py`). If you see it in a manifest, that manifest is not reproducible — regenerate.
+The all-zero sentinel (`"0" * 64`) is rejected at model-validation time. If you see it in a manifest, that manifest is not reproducible — regenerate.
 
 ## The run ID
 
@@ -39,7 +39,7 @@ Byte-identity across replay assertions excludes the following fields, which are 
 
 ## What reproducibility does NOT promise
 
-- **Network-dependent scores are not reproducible against live providers.** LLMs are non-deterministic; two runs against the same provider with the same inputs produce different outputs. To verify bit-identical replay you need a deterministic provider (see `tests/fixtures/`).
+- **Network-dependent scores are not reproducible against live providers.** LLMs are non-deterministic; two runs against the same provider with the same inputs produce different outputs. To verify bit-identical replay you need a deterministic provider that returns a pre-recorded response table.
 - **Reproducibility is conditional on the judge set.** Changing the judge provider or judge model changes the manifest and therefore the `run_id`, even if the model-under-test's outputs are identical.
 - **Rubric hashes, test versions, and the normaliser version are all pinned.** Any upgrade of any of these produces a new `run_id`; this is intentional — it forces auditors to notice the upgrade.
 
@@ -56,6 +56,6 @@ assert verify_run_id(manifest), "manifest has been tampered with"
 assert verify_fixture_digest(fixture_path, manifest.fixture_digest), "fixture has been edited"
 ```
 
-With a deterministic provider that returns a pre-recorded response table (see `tests/fixtures/deterministic_provider.py`), re-running against the same manifest produces a byte-identical scorecard modulo the masked fields listed above.
+With a deterministic provider that returns a pre-recorded response table, re-running against the same manifest produces a byte-identical scorecard modulo the masked fields listed above.
 
 A dedicated replay CLI is planned for a future minor version.

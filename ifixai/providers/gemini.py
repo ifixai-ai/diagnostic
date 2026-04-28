@@ -13,7 +13,7 @@ from ifixai.providers.base import (
     ProviderResponseError,
     ProviderTimeoutError,
 )
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_MODEL = "gemini-2.0-flash"
 

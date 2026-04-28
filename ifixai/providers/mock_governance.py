@@ -1,18 +1,15 @@
 """Reference `ChatProvider` with a partial structural governance surface.
 
-`MockGovernanceProvider` is the zero-credentials checkpoint provider: it
-runs the suite end-to-end without touching a paid LLM endpoint. It
-declares every `ProviderCapability` and implements the 11 governance
-hooks needed by most structural inspections, but it does NOT yet implement
-`apply_override` or `get_configuration_version`, so B04 (Deterministic
-Override) and B11 (System Controllability) emit `insufficient_evidence`
-against this mock. Expected scored coverage is 30 of 32 inspections — see
-the README's "How Many Inspections Score?" table.
+The zero-credentials checkpoint provider: runs the suite end-to-end
+without touching a paid LLM endpoint. Implements 11 of 13 governance
+hooks; the two unimplemented ones (`apply_override`,
+`get_configuration_version`) cause B04 and B11 to emit
+`insufficient_evidence`.
 
 Construct with:
     provider = MockGovernanceProvider(
         governance=GovernanceFixture.load("fixtures/governance/mock.yaml"),
-        responses={"default": "ACK"},           # keyword -> canned reply
+        responses={"default": "ACK"},
         default_response="ACK",
     )
 """
@@ -23,7 +20,7 @@ from typing import Optional
 from ifixai.providers.base import ChatProvider, ProviderCapability
 from ifixai.providers.governance_fixture import GovernanceFixture
 from ifixai.providers.governance_mixin import GovernanceMixin
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 
 class MockGovernanceProvider(GovernanceMixin, ChatProvider):
@@ -44,9 +41,8 @@ class MockGovernanceProvider(GovernanceMixin, ChatProvider):
         messages: list[ChatMessage],
         config: ProviderConfig,
     ) -> str:
-        # Deterministic keyword router — first matching keyword wins, else
-        # default_response. Keeps `send_message` stable across runs so
-        # reproducibility tests (B22) stay meaningful.
+        # Deterministic: first matching keyword wins, else default_response.
+        # Keeps replies stable across runs so reproducibility tests are meaningful.
         last_user = next(
             (m.content for m in reversed(messages) if m.role == "user"),
             "",

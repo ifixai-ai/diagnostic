@@ -11,7 +11,7 @@ from ifixai.reporting.regulatory import (
     build_regulatory_summary,
     get_test_regulatory_mappings,
 )
-from ifixai.types import TestResult, RegulatoryFramework, TestRunResult
+from ifixai.core.types import TestResult, RegulatoryFramework, TestRunResult
 
 SELF_JUDGE_BIAS_ADVISORY: Final[str] = (
     "self-judge bias: Standard-mode score not comparable to Full-mode "

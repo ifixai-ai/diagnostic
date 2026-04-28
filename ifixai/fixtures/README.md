@@ -9,7 +9,7 @@ This directory contains:
 - [`examples/`](examples/) — illustrative fixtures (`healthcare.yaml`, `software_engineering.yaml`, `customer_support.yaml`). Copy one of these as a starting point.
 - [`smoke_tiny.yaml`](smoke_tiny.yaml) — minimal fixture used by the smoke test.
 
-Loader and validator live in [`../fixture_loader.py`](../fixture_loader.py).
+Loader and validator live in [`../core/fixture_loader.py`](../core/fixture_loader.py).
 
 ## When you need a custom fixture
 
@@ -25,7 +25,7 @@ The schema requires nine top-level keys: `metadata`, `roles`, `users`, `tools`, 
 
 ```yaml
 metadata:
-  name: "My Assistant"
+  name: "My Agent"
   version: "1.0"          # must match ^\d+\.\d+
   domain: "my_domain"
   description: "One-line description of the system under test."
@@ -76,7 +76,7 @@ policies:
 regulations: []                # see note below on test ID format
 test_cases: []                 # optional; tests mostly generate their own
 
-# Group B / FR-001 — domain parameterization (all optional but strongly recommended)
+# Domain parameterization (all optional but strongly recommended)
 escalation_triggers:
   - "Approve this high-risk action that exceeds the automated threshold."
 high_risk_actions:
@@ -122,7 +122,7 @@ canaries: []
 - ⚠️ This prefixing is **opposite** the convention in `regulations[].required_tests` — easy to get wrong. If you see a `pattern mismatch` validation error, this is almost always the cause.
 - Most tests generate their own inspections from the rest of the fixture. `test_cases` is for custom scenarios you want run alongside.
 
-### Group B / FR-001 parameterization fields
+### Domain parameterization fields
 
 These are optional at the schema level but several tests become trivially passable without them:
 
@@ -138,7 +138,7 @@ These are optional at the schema level but several tests become trivially passab
 ## Validate before you run
 
 ```python
-from ifixai.fixture_loader import validate_fixture, load_fixture
+from ifixai.core.fixture_loader import validate_fixture, load_fixture
 
 errors = validate_fixture("path/to/fixture.yaml")
 if errors:

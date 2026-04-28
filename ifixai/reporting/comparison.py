@@ -1,6 +1,6 @@
 
 
-from ifixai.types import (
+from ifixai.core.types import (
     TestDelta,
     ComparisonReport,
     TestRunResult,

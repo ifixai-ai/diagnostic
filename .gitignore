@@ -1,0 +1,103 @@
+# ─── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+*.so
+*.dylib
+*.pyd
+build/
+dist/
+wheels/
+.python-version
+
+# ─── Virtual environments ──────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Lock files (resolve from pyproject.toml) ──────────────────────────────
+uv.lock
+poetry.lock
+Pipfile.lock
+
+# ─── IDE / editors ─────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.tmp
+
+# ─── Test, lint, type-check caches ─────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# ─── Notebooks ─────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Logs ──────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── OS ────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Test / test outputs (regenerated locally) ────────────────────────
+ifixai-results/
+runs/
+test_data/
+ifixai/reliability/.kappa_cache/
+gold_sets/*/labels-v*.json
+tests.html
+
+# ─── Library pytest suite (local-only; public surface is ifixai/tests/) ─────
+/tests/
+
+# ─── Spec-kit & local AI tooling ───────────────────────────────────────────
+specs/
+.specify/
+.cursor/
+.cursor/commands/speckit*
+.claude/
+
+# ─── Local-only docs (contributor notes, agent guidance, internal artifacts)
+CLAUDE.md
+TESTING.md
+OPEN_SOURCE_READINESS.md
+TESTS.md
+/examples/
+scripts/
+docs-content/
+website-misalignments-*.md
+
+# ─── Loose desktop dumps at repo root ──────────────────────────────────────
+/Screenshot*.png
+/screencapture-*.pdf
+/screencapture-*.png
+
+# ─── Secrets / local config (NEVER commit) ─────────────────────────────────
+.env
+.env.*
+!.env.example
+.envrc
+secrets/
+credentials.json
+*.pem
+*.key
+*.crt
+*.p12

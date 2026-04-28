@@ -2,7 +2,7 @@
 from typing import Optional
 
 from ifixai.evaluation.proportion_ci import ProportionCI
-from ifixai.types import (
+from ifixai.core.types import (
     InspectionCategory,
     TestResult,
     CategoryScore,

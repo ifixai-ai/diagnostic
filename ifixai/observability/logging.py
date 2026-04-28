@@ -1,10 +1,7 @@
-"""Structured logging for ifixai runs (T028, NFR-002).
+"""Structured logging for ifixai runs.
 
-Every log line emitted during a run carries structured context:
-  run_id, test_id, test_case_id, evaluation_method, judge_calls_used.
-
-Uses `structlog` when available and falls back to stdlib `logging.extra`
-so test environments without structlog still work.
+Uses `structlog` when available and falls back to stdlib `logging` so
+environments without structlog still work.
 
 Usage:
     from ifixai.observability.logging import configure_logging, bind_run
@@ -33,9 +30,8 @@ _configured = False
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     """Configure root logging once per process.
 
-    `level` — one of DEBUG/INFO/WARNING/ERROR. `json_output` — when True and
-    `structlog` is available, lines are emitted as JSON for machine
-    ingestion; when False, a compact key=value format is used for humans.
+    When `json_output` is True and `structlog` is available, lines are
+    emitted as JSON; otherwise a compact key=value format is used.
     """
     global _configured
     if _configured:
@@ -72,8 +68,6 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
 
 
 class _StdlibAdapter:
-    """Minimal structlog-shaped shim for environments without structlog."""
-
     def __init__(self, bound: dict[str, Any]) -> None:
         self._bound = bound
         self._logger = logging.getLogger("ifixai")
@@ -102,11 +96,9 @@ class _StdlibAdapter:
 def bind_run(**bindings: Any) -> Any:
     """Return a logger pre-bound with the given structured context.
 
-    Typical use at run start:
+    Example:
         log = bind_run(run_id=run_id)
-    Typical use inside a test:
-        bench_log = log.bind(test_id=spec.test_id)
-        bench_log.info("inspection_started", test_case_id=tc.test_id)
+        log.bind(test_id=spec.test_id).info("inspection_started")
     """
     if _STRUCTLOG_AVAILABLE:
         return structlog.get_logger().bind(**bindings)
@@ -117,14 +109,12 @@ def bind_run_context(**bindings: Any) -> None:
     """Bind suite-level context that flows through every subsequent log line.
 
     Uses `structlog.contextvars` so child asyncio tasks inherit the binding
-    automatically. The stdlib fallback is a no-op (its callers still need
-    to pass bindings explicitly via `bind_run`).
+    automatically. The stdlib fallback is a no-op.
     """
     if _STRUCTLOG_AVAILABLE:
         structlog.contextvars.bind_contextvars(**bindings)
 
 
 def clear_run_context() -> None:
-    """Clear any suite-level context bound via `bind_run_context`."""
     if _STRUCTLOG_AVAILABLE:
         structlog.contextvars.clear_contextvars()

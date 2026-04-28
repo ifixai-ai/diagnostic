@@ -5,24 +5,17 @@ from typing import Any
 import jsonschema
 import yaml
 
-try:
-    import mgclient  # type: ignore[import-untyped]
-except ImportError:
-    mgclient = None  # type: ignore[assignment]
+from ifixai.core.types import ConversationPlan, EvaluationCriteria, InspectionStep
 
-from ifixai.types import ConversationPlan, EvaluationCriteria, InspectionStep
-
-_DEFINITIONS_DIR = Path(__file__).parent / "definitions"
-_SCHEMA_PATH = Path(__file__).parent / "inspection_schema.json"
+_TESTS_DIR = Path(__file__).parent.parent / "inspections"
+_SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "definition.schema.json"
 
 class RuleLoadError(Exception):
     pass
 
 class RuleLoader:
-    pass
-
     def __init__(self, rules_dir: Path | None = None) -> None:
-        self.rules_dir = rules_dir or _DEFINITIONS_DIR
+        self.rules_dir = rules_dir or _TESTS_DIR
 
     def load_rules(self, test_id: str) -> ConversationPlan:
         yaml_path = self._find_rule_file(test_id)
@@ -41,9 +34,9 @@ class RuleLoader:
         if not self.rules_dir.exists():
             return plans
 
-        for yaml_path in sorted(self.rules_dir.glob("*.yaml")):
+        for yaml_path in sorted(self.rules_dir.glob("b*/definition.yaml")):
             raw = self._read_yaml(yaml_path)
-            bid = raw.get("test_id", yaml_path.stem)
+            bid = raw.get("test_id", yaml_path.parent.name)
             plans[bid] = self._parse_plan(raw, bid)
 
         return plans
@@ -54,7 +47,7 @@ class RuleLoader:
 
         short_id = test_id.replace("SSCI-", "").lower()
 
-        for yaml_path in self.rules_dir.glob(f"{short_id}*.yaml"):
+        for yaml_path in self.rules_dir.glob(f"{short_id}_*/definition.yaml"):
             return yaml_path
 
         return None
@@ -126,61 +119,3 @@ def load_inspection_definition(test_id: str) -> ConversationPlan | None:
             ) from exc
 
     return plan
-
-class MemgraphRuleLoader(RuleLoader):
-    pass
-
-    def __init__(
-        self,
-        host: str = "localhost",
-        port: int = 7687,
-        rules_dir: Path | None = None,
-    ) -> None:
-        super().__init__(rules_dir)
-        self.host = host
-        self.port = port
-
-    def load_rules(self, test_id: str) -> ConversationPlan:
-        plan = self._load_from_memgraph(test_id)
-        if plan is not None:
-            return plan
-        return super().load_rules(test_id)
-
-    def _load_from_memgraph(self, test_id: str) -> ConversationPlan | None:
-        if mgclient is None:
-            return None
-        try:
-            conn = mgclient.connect(host=self.host, port=self.port)
-            cursor = conn.cursor()
-            cursor.execute(
-                "MATCH (b:Test {id: $bid})-[:HAS_RULE]->(r:Rule) "
-                "RETURN r ORDER BY r.step_id",
-                {"bid": test_id},
-            )
-            rows = cursor.fetchall()
-            if not rows:
-                return None
-
-            steps = []
-            for row in rows:
-                rule = row[0].properties
-                steps.append(
-                    InspectionStep(
-                        step_id=rule.get("step_id", len(steps) + 1),
-                        prompt_template=rule.get("prompt_template", ""),
-                        variables_from=rule.get("variables_from", "fixture"),
-                        evaluation=EvaluationCriteria(
-                            expected_outcome=rule.get("expected_outcome", "refuse"),
-                            refuse_patterns=rule.get("refuse_patterns", []),
-                            comply_patterns=rule.get("comply_patterns", []),
-                        ),
-                    )
-                )
-
-            return ConversationPlan(
-                test_id=test_id,
-                steps=steps,
-                fixture_requirements=[],
-            )
-        except Exception:
-            return None

@@ -1,6 +1,6 @@
 
 from ifixai.mappings.loader import get_mappings_for_test, load_all_mappings
-from ifixai.types import TestResult, GovernanceGap, RegulatoryFramework
+from ifixai.core.types import TestResult, GovernanceGap, RegulatoryFramework
 
 TEST_CAPABILITY_MAP: dict[str, str] = {
     "B01": "Tool Authorization Control",

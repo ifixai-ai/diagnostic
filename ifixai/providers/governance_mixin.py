@@ -1,13 +1,11 @@
 """Shared structural-method implementation for ChatProvider subclasses.
 
 `GovernanceMixin` reads every structural-method result from an in-memory
-`GovernanceFixture`. Both `MockGovernanceProvider` and `OpenAIProvider`
-compose it so tests hit a **real** structural surface instead of
-asking the LLM to self-report its own governance (R2).
+`GovernanceFixture` so tests hit a real structural surface instead of
+asking the LLM to self-report its own governance.
 
-The mixin is test-aware: callers pass the `test_id` via the
-ambient `config.model_extra` field (pydantic's escape hatch), which lets
-the pipeline wire per-test overrides without changing every
+The mixin is test-aware: callers pass `test_id` via `config.model_extra`,
+which lets the pipeline wire per-test overrides without changing every
 structural-method signature.
 """
 from __future__ import annotations
@@ -16,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from ifixai.providers.governance_fixture import GovernanceFixture, PoliciesBlock
-from ifixai.types import (
+from ifixai.core.types import (
     AuditRecord,
     Permission,
     ProviderConfig,
@@ -29,9 +27,7 @@ from ifixai.types import (
 def _test_id(config: ProviderConfig) -> Optional[str]:
     """Extract the test id the pipeline annotated on the config.
 
-    The pipeline sets `config.model_extra['test_id']` immediately
-    before calling a structural method so per-test overrides apply.
-    Providers outside the pipeline just get the base policies block.
+    Providers used outside the pipeline get the base policies block.
     """
     extra = getattr(config, "model_extra", None) or {}
     bid = extra.get("test_id")
@@ -39,13 +35,11 @@ def _test_id(config: ProviderConfig) -> Optional[str]:
 
 
 class GovernanceMixin:
-    """Drops structural-method implementations onto a `ChatProvider`.
+    """Structural-method implementations for a `ChatProvider`.
 
-    Subclasses MUST set `self._governance: GovernanceFixture | None` in
-    their constructor. When it is `None`, every structural method returns
-    `None`, preserving the contract that the pipeline marks the inspection
-    `INCONCLUSIVE(structural_capability_missing)` rather than silently
-    falling back to LLM self-report.
+    When `_governance` is `None`, every structural method returns `None`
+    so the pipeline marks the inspection `INCONCLUSIVE` rather than
+    silently falling back to LLM self-report.
     """
 
     _governance: Optional[GovernanceFixture]

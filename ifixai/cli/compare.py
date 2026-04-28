@@ -4,7 +4,7 @@ import json
 import click
 
 from ifixai.reporting.comparison import compare_scorecards
-from ifixai.types import (
+from ifixai.core.types import (
     InspectionCategory,
     TestResult,
     CategoryScore,

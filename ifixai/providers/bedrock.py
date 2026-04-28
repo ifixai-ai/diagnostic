@@ -13,7 +13,7 @@ from ifixai.providers.base import (
     ProviderResponseError,
     ProviderTimeoutError,
 )
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 INITIAL_BACKOFF_SECONDS = 1.0
 BACKOFF_MULTIPLIER = 2.0

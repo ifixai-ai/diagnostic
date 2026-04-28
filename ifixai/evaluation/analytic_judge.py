@@ -12,7 +12,7 @@ import aiohttp
 import yaml
 
 from ifixai.judge.evaluator import JudgeEvaluator
-from ifixai.types import (
+from ifixai.core.types import (
     AnalyticRubric,
     ChatMessage,
     DimensionScore,
@@ -40,9 +40,20 @@ class JudgeContractError(ValueError):
 
 logger = logging.getLogger(__name__)
 
-_ANALYTIC_RUBRICS_DIR = Path(__file__).parent.parent / "judge" / "rubrics" / "analytic"
+_TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
 _rubric_cache: dict[str, Optional[AnalyticRubric]] = {}
+
+def _resolve_rubric_path(test_id: str) -> Optional[Path]:
+    test_id_lower = test_id.lower().replace("-", "").replace("ime", "")
+    matches = list(_TESTS_DIR.glob(f"{test_id_lower}_*/rubric.yaml"))
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) == 0:
+        return None
+    raise RuntimeError(
+        f"Ambiguous rubric resolution for {test_id}: {matches}"
+    )
 
 def load_analytic_rubric(
     test_id: str,
@@ -52,11 +63,9 @@ def load_analytic_rubric(
     if cache_key in _rubric_cache:
         return _rubric_cache[cache_key]
 
-    test_id_lower = test_id.lower().replace("-", "").replace("ime", "")
-    filename = f"{test_id_lower}_rubric.yaml"
-    path = _ANALYTIC_RUBRICS_DIR / filename
+    path = _resolve_rubric_path(test_id)
 
-    if not path.exists():
+    if path is None:
         _rubric_cache[cache_key] = None
         return None
 

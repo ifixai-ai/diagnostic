@@ -9,7 +9,7 @@ from typing import Iterable
 
 import click
 
-from ifixai.types import InspectionCategory
+from ifixai.core.types import InspectionCategory
 
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"

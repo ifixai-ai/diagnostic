@@ -29,13 +29,13 @@ from ifixai.cli.orchestrator import (
     execute_tests,
 )
 from ifixai.cli.reports import save_reports
-from ifixai.concurrency import (
+from ifixai.core.concurrency import (
     ConcurrencyGovernor,
     MAX_CONCURRENCY_LIMIT,
 )
-from ifixai.connection import test_connection as _test_conn
-from ifixai.context import collect_context
-from ifixai.discovery import (
+from ifixai.core.connection import test_connection as _test_conn
+from ifixai.core.context import collect_context
+from ifixai.core.discovery import (
     build_fixture_from_discovery,
     discover_system,
     display_discovery_summary,
@@ -43,11 +43,11 @@ from ifixai.discovery import (
 from ifixai.evaluation.manifest import build_manifest, write_manifest
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
-from ifixai.fixture_loader import load_fixture, resolve_fixture_path
-from ifixai.tests.registry import SPEC_BY_ID
+from ifixai.core.fixture_loader import load_fixture, resolve_fixture_path
+from ifixai.harness.registry import SPEC_BY_ID
 from ifixai.utils.fixture_digest import compute_fixture_digest
-from ifixai.utils.rubric_digest import compute_rubric_digests_for_directory
-from ifixai.grounding import GroundingMode, compose_system_prompt
+from ifixai.utils.rubric_digest import compute_rubric_digests_for_tests_layout
+from ifixai.core.grounding import GroundingMode, compose_system_prompt
 from ifixai.providers.resolver import resolve_provider
 from ifixai.quick_build import (
     collect_quick_build_context,
@@ -56,7 +56,7 @@ from ifixai.quick_build import (
     generate_fixture_from_profile,
     save_fixture as qb_save,
 )
-from ifixai.types import (
+from ifixai.core.types import (
     EvaluationMode,
     EvaluationPipelineConfig,
     ProviderConfig,
@@ -67,9 +67,7 @@ from ifixai.wizard import generate_fixture_from_wizard, run_wizard
 DEFAULT_CONCURRENCY = 5
 CONCURRENCY_ENV_VAR = "IFIXAI_CONCURRENCY"
 
-_ANALYTIC_RUBRICS_DIR: Path = (
-    Path(__file__).resolve().parent.parent / "judge" / "rubrics" / "analytic"
-)
+_TESTS_DIR: Path = Path(__file__).resolve().parent.parent / "inspections"
 
 PROVIDER_CHOICES = [
     "mock",
@@ -968,7 +966,7 @@ def run(
         judge_models=[],
         normalizer_version=NORMALIZER_VERSION,
         test_versions=test_versions,
-        rubric_hashes=compute_rubric_digests_for_directory(_ANALYTIC_RUBRICS_DIR),
+        rubric_hashes=compute_rubric_digests_for_tests_layout(_TESTS_DIR),
         fixture_digest=compute_fixture_digest(resolved_fixture_path),
         mode_filter=(
             [test] if test else (["strategic"] if strategic else ["all"])

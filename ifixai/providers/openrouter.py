@@ -9,7 +9,7 @@ from ifixai.providers.base import (
     ProviderResponseError,
     ProviderTimeoutError,
 )
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_MODEL = "openai/gpt-4o"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"

@@ -7,7 +7,7 @@ from ifixai.reporting.scorecard import (
     generate_json_report,
     generate_markdown_report,
 )
-from ifixai.types import TestRunResult
+from ifixai.core.types import TestRunResult
 
 
 def _slugify(value: str) -> str:

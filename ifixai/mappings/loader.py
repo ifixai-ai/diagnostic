@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from ifixai.types import GovernanceGap, RegulatoryFramework, RegulatoryMapping
+from ifixai.core.types import GovernanceGap, RegulatoryFramework, RegulatoryMapping
 
 _MAPPINGS_DIR = Path(__file__).parent
 

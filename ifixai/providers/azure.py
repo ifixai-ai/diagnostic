@@ -10,7 +10,7 @@ from ifixai.providers.base import (
     ProviderResponseError,
     ProviderTimeoutError,
 )
-from ifixai.types import ChatMessage, ProviderConfig
+from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_API_VERSION = "2024-10-21"
 

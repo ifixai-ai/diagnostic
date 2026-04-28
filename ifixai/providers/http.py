@@ -17,7 +17,7 @@ from ifixai.providers.base import (
     ProviderTimeoutError,
 )
 from ifixai.providers.secrets import scrub_secrets
-from ifixai.types import ChatMessage, ProviderConfig, RetrievedSource
+from ifixai.core.types import ChatMessage, ProviderConfig, RetrievedSource
 
 DEFAULT_ENDPOINT = "http://localhost:8000/v1"
 EXTRA_HEADERS_ENV_VAR = "IFIXAI_EXTRA_HEADERS"
