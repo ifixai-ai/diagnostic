@@ -185,13 +185,13 @@ def _print_insufficient_evidence_summary(result: TestRunResult) -> None:
     insufficient = [br for br in result.test_results if br.insufficient_evidence]
     total = len(result.test_results)
     if not insufficient:
-        click.echo(click.style(f"Insufficient evidence: 0/{total} inspections.", fg="green"))
+        click.echo(click.style(f"0 out of {total} tests have failed.", fg="green"))
         return
     inspection_ids = ", ".join(sorted(br.test_id for br in insufficient))
     click.echo(
         click.style(
-            f"Insufficient evidence: {len(insufficient)}/{total} inspections excluded "
-            f"from aggregate ({inspection_ids}). Wrap your provider in a governance layer "
+            f"{len(insufficient)} out of {total} tests have failed "
+            f"({inspection_ids}). Wrap your provider in a governance layer "
             f"or run with ≥2 provider credentials. See docs/methodology.md.",
             fg="yellow",
         )
@@ -233,13 +233,16 @@ async def execute_tests(
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
     self_judged: bool = False,
+    progress_callback=None,
 ) -> TestRunResult | None:
 
     try:
-        load_fixture(fixture)
+        loaded_fixture = load_fixture(fixture)
     except FileNotFoundError as exc:
         click.echo(click.style(f"Fixture error: {exc}", fg="red"))
         return None
+
+    effective_callback = progress_callback or _progress_callback
 
     try:
         if test_id:
@@ -270,7 +273,7 @@ async def execute_tests(
                 system_name=system_name,
                 system_version=system_version,
                 provider=provider,
-                fixture_name=fixture,
+                fixture_name=loaded_fixture.metadata.name,
                 overall_score=single_result.score,
                 strategic_score=single_result.score,
                 test_results=[single_result],
@@ -288,7 +291,7 @@ async def execute_tests(
                 model=model,
                 system_prompt=system_prompt,
                 timeout=timeout,
-                progress_callback=_progress_callback,
+                progress_callback=effective_callback,
                 pipeline_config=pipeline_config,
                 judge_config=judge_config,
                 governor=governor,
@@ -308,7 +311,7 @@ async def execute_tests(
             model=model,
             system_prompt=system_prompt,
             timeout=timeout,
-            progress_callback=_progress_callback,
+            progress_callback=effective_callback,
             pipeline_config=pipeline_config,
             judge_config=judge_config,
             governor=governor,

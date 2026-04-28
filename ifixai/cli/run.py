@@ -12,11 +12,17 @@ from pathlib import Path
 
 import click
 
+from ifixai import __version__ as IFIXAI_VERSION
+from ifixai.cli._branding import (
+    CategoryProgress,
+    print_startup_banner,
+    supports_color,
+)
+from ifixai.cli._imecore_prompt import print_imecore_conclusion
 from ifixai.cli.orchestrator import (
     _build_judge_config,
     _eval_mode_declaration,
     _lookup_env_api_key,
-    _print_inconclusive_summary,
     _print_insufficient_evidence_summary,
     _resolve_judge_label,
     _resolve_standard_eval_mode,
@@ -388,6 +394,14 @@ def _print_concurrency_banner(resolved: int) -> None:
     "accept a seed will record seed_supported_by_provider=false in the "
     "manifest; the seed is still recorded.",
 )
+@click.option(
+    "--quiet",
+    "-q",
+    is_flag=True,
+    default=False,
+    help="Suppress the startup banner, in-place progress bars, and the post-run "
+    "iMe Core conclusion. Stdout still contains scores so CI gates keep working.",
+)
 def run(
     provider: str | None,
     api_key: str | None,
@@ -420,8 +434,10 @@ def run(
     sut_temperature: float,
     sut_seed: int | None,
     grounding: str,
+    quiet: bool,
 ) -> None:
     """Run ifixai against a target AI assistant."""
+    print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
     _print_concurrency_banner(resolved_concurrency)
     concurrency_governor = ConcurrencyGovernor(resolved_concurrency)
@@ -837,6 +853,26 @@ def run(
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    cat_progress: CategoryProgress | None = None
+    progress_cb = None
+    if not quiet and not test and supports_color():
+        from ifixai.tests.registry import ALL_SPECS, STRATEGIC_TESTS
+
+        targeted = (
+            [s for s in ALL_SPECS if s.test_id in STRATEGIC_TESTS]
+            if strategic
+            else list(ALL_SPECS)
+        )
+        totals: dict = {}
+        for s in targeted:
+            cat = getattr(s, "category", None)
+            if cat is not None:
+                totals[cat] = totals.get(cat, 0) + 1
+        cat_progress = CategoryProgress.from_totals(totals)
+        cat_progress.start()
+        progress_cb = _make_category_progress_callback(cat_progress)
+
     result = asyncio.run(
         execute_tests(
             provider=provider,
@@ -856,8 +892,12 @@ def run(
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
             self_judged=(eval_mode == "self"),
+            progress_callback=progress_cb,
         )
     )
+
+    if cat_progress is not None:
+        cat_progress.finalize()
 
     if result is None:
         sys.exit(1)
@@ -871,7 +911,17 @@ def run(
         click.echo(f"  Strategic Score:  {redacted}")
         click.echo(f"  Passed:           {redacted}")
     else:
-        click.echo(f"  Overall Score:    {result.overall_score:.1%}")
+        score_line = f"  Overall Score:    {result.overall_score:.1%}"
+        if (
+            result.overall_score is not None
+            and min_score is not None
+            and result.overall_score < min_score
+        ):
+            score_line += click.style(
+                f" (Score {result.overall_score:.1%} is below minimum {min_score:.1%})",
+                fg="red",
+            )
+        click.echo(score_line)
         click.echo(f"  Grade:            {result.grade.value}")
         click.echo(f"  Strategic Score:  {result.strategic_score:.1%}")
         verdict = (
@@ -882,10 +932,9 @@ def run(
         click.echo(f"  Passed:           {verdict}")
     click.echo()
 
-    _print_inconclusive_summary(result)
     _print_insufficient_evidence_summary(result)
-    click.echo()
 
+    click.echo(click.style("Access your Full Report here:", bold=True))
     save_reports(result, output, report_format)
 
     run_mode = RunMode.FULL if profile.lower() == "full" else RunMode.STANDARD
@@ -929,12 +978,9 @@ def run(
         b14_seed=b14_seed if b14_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
     )
-    manifest_path = write_manifest(manifest, Path(reliability_out))
-    click.echo()
-    click.echo(click.style("Run manifest", bold=True))
-    click.echo(f"  Mode:     {manifest.mode.value}")
-    click.echo(f"  Run ID:   {manifest.run_id}")
-    click.echo(f"  Manifest: {manifest_path}")
+    write_manifest(manifest, Path(reliability_out))
+
+    print_imecore_conclusion(quiet=quiet)
 
     if result.overall_score is None:
         click.echo(
@@ -945,13 +991,17 @@ def run(
         )
         sys.exit(2)
     if result.overall_score < min_score:
-        click.echo(
-            click.style(
-                f"Score {result.overall_score:.1%} is below minimum {min_score:.1%}",
-                fg="red",
-            )
-        )
         sys.exit(2)
+
+
+def _make_category_progress_callback(progress: "CategoryProgress"):
+    def _cb(bid: str, index: int, total: int, bench_result: object) -> None:
+        category = getattr(bench_result, "category", None)
+        passing = bool(getattr(bench_result, "passing", False))
+        if category is not None:
+            progress.record(category, passing)
+    return _cb
+
 
 def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
     """Run the interactive guided mode to collect provider configuration.
