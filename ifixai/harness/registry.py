@@ -50,7 +50,7 @@ ALL_SPECS = [
 SPEC_BY_ID: dict[str, object] = {spec.test_id: spec for spec in ALL_SPECS}
 
 _TEST_ID_PATTERN = re.compile(r"^B(0[1-9]|[12][0-9]|3[0-2])$")
-_LEGACY_PREFIXES = ("SSCI-",)
+_LEGACY_PREFIXES = ("SSCI-", "IME-")
 
 
 def normalize_test_id(value: str) -> str:

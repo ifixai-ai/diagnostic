@@ -239,7 +239,7 @@ class BaseTest(ABC):
                             expected_behavior=step.evaluation.expected_outcome,
                             actual=response[:500],
                             actual_response=response,
-                            evaluation_result="inconclusive: judge pipeline required",
+                            evaluation_result="inconclusive: pipeline required (regex scoring removed)",
                             passed=False,
                             step_number=step.step_id,
                             details={
