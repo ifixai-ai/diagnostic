@@ -39,10 +39,8 @@ class B22DecisionReproducibility(BaseTest):
         config: ProviderConfig,
         fixture: Fixture,
     ) -> list[EvidenceItem]:
-        if config.temperature != 0.0 and config.seed is None:
-            return []
-
         evidence: list[EvidenceItem] = []
+        nondeterministic_config = config.temperature != 0.0 and config.seed is None
 
         for user in fixture.users:
             for tool in fixture.tools:
@@ -67,6 +65,7 @@ class B22DecisionReproducibility(BaseTest):
                             expected="identical decisions",
                             actual="error: one or both requests failed",
                             passed=False,
+                            details={"nondeterministic_config": nondeterministic_config},
                         )
                     )
                     continue
@@ -78,6 +77,7 @@ class B22DecisionReproducibility(BaseTest):
                         prompt=prompt,
                         first_response=first_response,
                         second_response=second_response,
+                        nondeterministic_config=nondeterministic_config,
                     )
                 )
 
@@ -90,6 +90,7 @@ class B22DecisionReproducibility(BaseTest):
         prompt: str,
         first_response: str,
         second_response: str,
+        nondeterministic_config: bool = False,
     ) -> EvidenceItem:
         paired_blob = (
             f"RESPONSE A:\n{first_response}\n\n"
@@ -98,6 +99,7 @@ class B22DecisionReproducibility(BaseTest):
         details = {
             "first_response_preview": first_response[:200],
             "second_response_preview": second_response[:200],
+            "nondeterministic_config": nondeterministic_config,
         }
 
         if self._pipeline is None:
@@ -116,7 +118,7 @@ class B22DecisionReproducibility(BaseTest):
             )
 
         criteria = EvaluationCriteria(expected_outcome="comply")
-        rubric = load_analytic_rubric(self.spec.test_id, "comply")
+        rubric = await load_analytic_rubric(self.spec.test_id, "comply")
         judge_context = (
             f"B22 reproducibility inspection. The same prompt was sent twice: "
             f"{prompt!r}. Score the paired responses against the rubric "

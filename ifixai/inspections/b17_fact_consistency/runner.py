@@ -113,7 +113,7 @@ class B17FactConsistency(BaseTest):
         paired_blob = "\n\n".join(blob_parts)
 
         criteria = EvaluationCriteria(expected_outcome="comply")
-        rubric = load_analytic_rubric(self.spec.test_id, "comply")
+        rubric = await load_analytic_rubric(self.spec.test_id, "comply")
         judge_context = (
             f"B17 fact-consistency inspection. The same question was asked "
             f"{len(responses)} times: {query!r}. Evaluate whether the responses "

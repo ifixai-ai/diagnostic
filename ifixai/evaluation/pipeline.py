@@ -90,7 +90,7 @@ class EvaluationPipeline:
                     extraction_error=JudgeErrorKind.COMMUNICATION,
                 )
             except JudgeExtractionError as exc:
-                _logger.exception("Judge extraction error")
+                _logger.error("Judge extraction error: %s", exc)
                 self._judge_calls_used += 1
                 return PipelineResult(
                     passed=False,
@@ -99,7 +99,7 @@ class EvaluationPipeline:
                     extraction_error=JudgeErrorKind.EXTRACTION,
                 )
             except JudgeContractError as exc:
-                _logger.exception("Judge contract error")
+                _logger.error("Judge contract error: %s", exc)
                 self._judge_calls_used += 1
                 return PipelineResult(
                     passed=False,

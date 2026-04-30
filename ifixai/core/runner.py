@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Callable, Optional
 
 from ifixai.core.concurrency import ConcurrencyGovernor
 from ifixai.evaluation.analytic_judge import AnalyticRubricJudge
@@ -50,6 +51,9 @@ from ifixai.core.types import (
 )
 
 
+ProgressCallback = Callable[[str, int, int, "TestResult"], None]
+
+
 class SelfJudgeNotAllowedError(Exception):
     pass
 
@@ -75,13 +79,15 @@ async def run_all(
     fixture: Fixture,
     system_name: str = "",
     system_version: str = "1.0",
-    progress_callback: object = None,
+    progress_callback: Optional[ProgressCallback] = None,
     judge_config: JudgeConfig | None = None,
     pipeline_config: EvaluationPipelineConfig | None = None,
     governor: ConcurrencyGovernor | None = None,
+    capabilities: ProviderCapabilities | None = None,
 ) -> TestRunResult:
 
-    capabilities = await detect_capabilities(provider, config)
+    if capabilities is None:
+        capabilities = await detect_capabilities(provider, config)
 
     judge = _build_judge_evaluator(judge_config)
 
@@ -121,13 +127,15 @@ async def run_strategic(
     fixture: Fixture,
     system_name: str = "",
     system_version: str = "1.0",
-    progress_callback: object = None,
+    progress_callback: Optional[ProgressCallback] = None,
     judge_config: JudgeConfig | None = None,
     pipeline_config: EvaluationPipelineConfig | None = None,
     governor: ConcurrencyGovernor | None = None,
+    capabilities: ProviderCapabilities | None = None,
 ) -> TestRunResult:
 
-    capabilities = await detect_capabilities(provider, config)
+    if capabilities is None:
+        capabilities = await detect_capabilities(provider, config)
 
     judge = _build_judge_evaluator(judge_config)
 
@@ -175,9 +183,12 @@ async def run_single(
     fixture: Fixture,
     judge_config: JudgeConfig | None = None,
     pipeline_config: EvaluationPipelineConfig | None = None,
+    progress_callback: Optional[ProgressCallback] = None,
+    capabilities: ProviderCapabilities | None = None,
 ) -> TestResult:
 
-    capabilities = await detect_capabilities(provider, config)
+    if capabilities is None:
+        capabilities = await detect_capabilities(provider, config)
 
     judge = _build_judge_evaluator(judge_config)
 
@@ -202,7 +213,7 @@ async def _execute_inspections(
     config: ProviderConfig,
     fixture: Fixture,
     capabilities: ProviderCapabilities | None = None,
-    progress_callback: object = None,
+    progress_callback: Optional[ProgressCallback] = None,
     pipeline_config: EvaluationPipelineConfig | None = None,
     pipeline: EvaluationPipeline | None = None,
     governor: ConcurrencyGovernor | None = None,
@@ -224,15 +235,16 @@ async def _run_sequential(
     config: ProviderConfig,
     fixture: Fixture,
     capabilities: ProviderCapabilities | None,
-    progress_callback: object,
+    progress_callback: Optional[ProgressCallback],
     pipeline_config: EvaluationPipelineConfig | None,
     pipeline: EvaluationPipeline | None,
 ) -> list[TestResult]:
     results: list[TestResult] = []
     total = len(inspections)
+    spec_map = {s.test_id: s for s in specs}
 
     for index, (test_id, inspection) in enumerate(inspections.items(), start=1):
-        spec = _find_spec(test_id, specs)
+        spec = spec_map.get(test_id)
         try:
             result = await inspection.execute(provider, config, fixture, capabilities, pipeline_config=pipeline_config, pipeline=pipeline)  # type: ignore[union-attr]
         except _EXPECTED_INSPECTION_ERRORS as exc:
@@ -297,28 +309,29 @@ async def _run_parallel(
     config: ProviderConfig,
     fixture: Fixture,
     capabilities: ProviderCapabilities | None,
-    progress_callback: object,
+    progress_callback: Optional[ProgressCallback],
     pipeline_config: EvaluationPipelineConfig | None,
     pipeline: EvaluationPipeline | None,
     governor: ConcurrencyGovernor,
 ) -> list[TestResult]:
     items = list(inspections.items())
     total = len(items)
+    spec_map = {s.test_id: s for s in specs}
     tasks = [
         _execute_single_inspection(
-            test_id, inspection, _find_spec(test_id, specs),
+            test_id, inspection, spec_map.get(test_id),
             provider, config, fixture, capabilities,
             pipeline_config, pipeline, governor,
         )
         for test_id, inspection in items
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=False)
+    results: list[TestResult] = []
+    for coro in asyncio.as_completed(tasks):
+        result = await coro
+        results.append(result)
+        if progress_callback and callable(progress_callback):
+            progress_callback(result.test_id, len(results), total, result)
     results.sort(key=lambda r: r.test_id)
-
-    if progress_callback and callable(progress_callback):
-        for index, result in enumerate(results, start=1):
-            progress_callback(result.test_id, index, total, result)
-
     return results
 
 def _build_judge_evaluator(
@@ -373,7 +386,7 @@ def _build_result(
     }
 
     category_scores = [
-        compute_category_score(test_results, category, test_weights)
+        compute_category_score(test_results, category, test_weights, DEFAULT_CATEGORY_WEIGHTS)
         for category in InspectionCategory
     ]
 
@@ -400,23 +413,29 @@ def _build_result(
     ]
 
     combined_warnings = list(warnings) if warnings else []
+    seen: set[str] = set(combined_warnings)
     for msg in insufficient_evidence_warnings(test_results):
-        if msg not in combined_warnings:
+        if msg not in seen:
+            seen.add(msg)
             combined_warnings.append(msg)
     for msg in exploratory_inspection_warnings(test_results):
-        if msg not in combined_warnings:
+        if msg not in seen:
+            seen.add(msg)
             combined_warnings.append(msg)
     for msg in advisory_inspection_warnings(test_results):
-        if msg not in combined_warnings:
+        if msg not in seen:
+            seen.add(msg)
             combined_warnings.append(msg)
     for msg in attestation_inspection_warnings(test_results):
-        if msg not in combined_warnings:
+        if msg not in seen:
+            seen.add(msg)
             combined_warnings.append(msg)
     for msg in extraction_error_warnings(test_results):
-        if msg not in combined_warnings:
+        if msg not in seen:
+            seen.add(msg)
             combined_warnings.append(msg)
     b22_msg = b22_determinism_warning(test_results, sut_temperature, sut_seed)
-    if b22_msg is not None and b22_msg not in combined_warnings:
+    if b22_msg is not None and b22_msg not in seen:
         combined_warnings.append(b22_msg)
 
     is_passed = overall_score is not None and overall_score >= PASS_THRESHOLD

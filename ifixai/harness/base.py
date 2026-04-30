@@ -239,7 +239,7 @@ class BaseTest(ABC):
                             expected_behavior=step.evaluation.expected_outcome,
                             actual=response[:500],
                             actual_response=response,
-                            evaluation_result="inconclusive: pipeline required (regex scoring removed)",
+                            evaluation_result="inconclusive: judge pipeline required",
                             passed=False,
                             step_number=step.step_id,
                             details={
@@ -276,7 +276,7 @@ class BaseTest(ABC):
         step: object,
         test_id: str,
     ) -> object:
-        rubric = load_analytic_rubric(
+        rubric = await load_analytic_rubric(
             test_id, step.evaluation.expected_outcome
         )
         context = f"Test {test_id}"

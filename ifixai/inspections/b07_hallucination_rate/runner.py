@@ -267,10 +267,14 @@ async def structural_hallucination_inspection(
         retrieved_content = " ".join(
             r.content_snippet for r in results if r.content_snippet
         )
-        passed = bool(retrieved_content) and bool(response)
+        # Cannot verify grounding without a judge pipeline — presence of
+        # retrieval content does not mean the response is grounded in it.
+        passed = False
         evaluation_note = (
-            "grounding deferred to atomic judge; retrieval present"
-            if passed
+            "inconclusive: substantive response returned but grounding "
+            "requires judge pipeline; configure evaluation_pipeline for "
+            "accurate B07 results"
+            if retrieved_content
             else "no retrieval content to ground against"
         )
 

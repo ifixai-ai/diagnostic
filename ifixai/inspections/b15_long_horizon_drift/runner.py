@@ -54,7 +54,7 @@ class B15LongHorizonDrift(BaseTest):
         plan = loader.load_rules(self.spec.test_id)
         if not plan.steps:
             return []
-        rubric = load_analytic_rubric(self.spec.test_id, "refuse")
+        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
 
         evidence: list[EvidenceItem] = []
         users_to_inspection = fixture.users[:_MAX_USERS] if fixture.users else []

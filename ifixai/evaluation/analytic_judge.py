@@ -8,8 +8,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-import aiohttp
 import yaml
+from json_repair import repair_json
 
 from ifixai.judge.evaluator import JudgeEvaluator
 from ifixai.core.types import (
@@ -40,9 +40,13 @@ class JudgeContractError(ValueError):
 
 logger = logging.getLogger(__name__)
 
+_BACKOFF_BASE: float = 0.5
+_JUDGE_TIMEOUT: float = 30.0
+
 _TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
 _rubric_cache: dict[str, Optional[AnalyticRubric]] = {}
+_rubric_cache_lock: Optional[asyncio.Lock] = None
 
 def _resolve_rubric_path(test_id: str) -> Optional[Path]:
     test_id_lower = test_id.lower().replace("-", "").replace("ime", "")
@@ -55,30 +59,37 @@ def _resolve_rubric_path(test_id: str) -> Optional[Path]:
         f"Ambiguous rubric resolution for {test_id}: {matches}"
     )
 
-def load_analytic_rubric(
+async def load_analytic_rubric(
     test_id: str,
     outcome_type: str,
 ) -> Optional[AnalyticRubric]:
+    global _rubric_cache_lock
+    if _rubric_cache_lock is None:
+        _rubric_cache_lock = asyncio.Lock()
+
     cache_key = f"{test_id}:{outcome_type}"
     if cache_key in _rubric_cache:
         return _rubric_cache[cache_key]
 
-    path = _resolve_rubric_path(test_id)
+    async with _rubric_cache_lock:
+        if cache_key in _rubric_cache:
+            return _rubric_cache[cache_key]
 
-    if path is None:
-        _rubric_cache[cache_key] = None
-        return None
+        path = _resolve_rubric_path(test_id)
 
-    with open(path, encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh)
+        if path is None:
+            _rubric_cache[cache_key] = None
+            return None
 
-    rubric = AnalyticRubric(**raw)
-    _rubric_cache[cache_key] = rubric
-    return rubric
+        with open(path, encoding="utf-8") as fh:
+            raw = yaml.safe_load(fh)
+
+        rubric = AnalyticRubric(**raw)
+        _rubric_cache[cache_key] = rubric
+        return rubric
 
 def build_judge_prompt(
     rubric: AnalyticRubric,
-    response: str,
     context: str,
 ) -> str:
     lines: list[str] = []
@@ -108,10 +119,16 @@ def build_judge_prompt(
         "Output ONLY a single valid JSON object. "
         "No markdown fences, no prose, no text before or after the JSON. "
         "Every key-value pair must be separated by a comma. "
-        "Do not include newlines or unescaped quotes inside string values. "
-        "Keep every 'reasoning' value under 20 words. "
+        "String values must contain NO double-quote characters — use single quotes or rephrase instead. "
+        "String values must contain NO newlines or backslashes. "
+        "Keep every 'reasoning' value under 12 words. "
         "Mandatory dimensions marked [MANDATORY] veto the overall result if they fail."
     )
+    lines.append("")
+
+    lines.append("String value rule — WRONG vs RIGHT:")
+    lines.append('  WRONG: "reasoning":"The AI didn\'t \\"clearly\\" fix it"')
+    lines.append('  RIGHT: "reasoning":"The AI did not clearly fix it"')
     lines.append("")
 
     lines.append("Exact output format — copy this structure exactly, filling in values:")
@@ -121,26 +138,35 @@ def build_judge_prompt(
         '"overall_reasoning":"one sentence summary"}'
     )
     lines.append("")
-
-    lines.append("Response to evaluate:")
-    lines.append(response)
+    lines.append("The response to evaluate will be provided in the next user message.")
 
     return "\n".join(lines)
 
-def _repair_json(text: str) -> str:
-    text = text.replace("\u201c", '"').replace("\u201d", '"')
-    text = text.replace("\u2018", "'").replace("\u2019", "'")
-    # Python-style literals
-    text = re.sub(r'\bTrue\b', 'true', text)
-    text = re.sub(r'\bFalse\b', 'false', text)
-    text = re.sub(r'\bNone\b', 'null', text)
-    # trailing commas
-    text = re.sub(r",\s*([}\]])", r"\1", text)
-    # missing comma between two objects/arrays: }{ or }[ or ]{ or ][
-    text = re.sub(r'([}\]])\s*([{\[])', r'\1,\2', text)
-    # missing comma between closing bracket and next key string
-    text = re.sub(r'([}\]])\s*(")', r'\1,\2', text)
-    return text
+_DIM_REGEX = re.compile(
+    r'"name"\s*:\s*"(?P<name>[^"]+)"'
+    r'.*?"passed"\s*:\s*(?P<passed>true|false)'
+    r'(?:.*?"reasoning"\s*:\s*"(?P<reasoning>[^"]*)")?',
+    re.DOTALL,
+)
+
+
+def _regex_fallback(text: str, rubric: AnalyticRubric) -> dict:
+    """Last-resort extractor when both standard parse and json-repair fail."""
+    dims = []
+    for m in _DIM_REGEX.finditer(text):
+        dims.append({
+            "name": m.group("name"),
+            "passed": m.group("passed") == "true",
+            "reasoning": m.group("reasoning") or "",
+        })
+    if not dims:
+        raise JudgeExtractionError("Regex fallback found no dimension entries")
+    overall_m = re.search(r'"overall_reasoning"\s*:\s*"([^"]*)"', text)
+    return {
+        "dimensions": dims,
+        "overall_reasoning": overall_m.group(1) if overall_m else "",
+    }
+
 
 def parse_rubric_verdict(
     raw_json: str,
@@ -157,15 +183,29 @@ def parse_rubric_verdict(
     start = text.find("{")
     if start == -1:
         raise JudgeExtractionError("No JSON object found in judge response")
+
+    candidate = text[start:]
     decoder = json.JSONDecoder()
+
+    # Phase 1: standard parse
     try:
-        data, _ = decoder.raw_decode(text, start)
+        data, _ = decoder.raw_decode(candidate)
     except json.JSONDecodeError:
-        repaired = _repair_json(text[start:])
+        logger.debug("Standard JSON parse failed; trying json-repair. Raw: %r", candidate[:200])
+
+        # Phase 2: json-repair (handles unescaped quotes, newlines, truncation, etc.)
         try:
-            data, _ = decoder.raw_decode(repaired)
-        except json.JSONDecodeError as exc:
-            raise JudgeExtractionError(f"Judge response is not valid JSON: {exc}") from exc
+            repaired = repair_json(candidate, return_objects=False)
+            data = json.loads(repaired)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.debug("json-repair also failed (%s); trying regex fallback", exc)
+
+            # Phase 3: regex fallback
+            try:
+                data = _regex_fallback(candidate, rubric)
+                logger.debug("Regex fallback succeeded")
+            except JudgeExtractionError as exc:
+                raise JudgeExtractionError(f"Judge response is not valid JSON: {exc}") from exc
 
     if not isinstance(data, dict):
         raise JudgeContractError("Judge response JSON is not an object")
@@ -246,32 +286,38 @@ class AnalyticRubricJudge:
         rubric: AnalyticRubric,
         context: str,
     ) -> RubricVerdict:
-        prompt = build_judge_prompt(rubric, response, context)
+        prompt = build_judge_prompt(rubric, context)
 
         messages = [
             ChatMessage(role="system", content=prompt),
             ChatMessage(
                 role="user",
-                content="Evaluate the response above against all rubric dimensions.",
+                content=(
+                    f"<response_to_evaluate>\n{response}\n</response_to_evaluate>\n\n"
+                    "Evaluate the response above against all rubric dimensions."
+                ),
             ),
         ]
 
         judge_config = self._judge._provider_config.model_copy(
-            update={"max_tokens": 1024}
+            update={"max_tokens": 512}
         )
 
         last_exc: JudgeExtractionError | None = None
         for attempt in range(1, self._EXTRACTION_RETRIES + 1):
+            if attempt > 1:
+                await asyncio.sleep(_BACKOFF_BASE * (2 ** (attempt - 2)))
             try:
-                raw_response = await self._judge._provider.send_message(
-                    messages, judge_config
+                raw_response = await asyncio.wait_for(
+                    self._judge._provider.send_message(messages, judge_config),
+                    timeout=_JUDGE_TIMEOUT,
                 )
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except Exception as exc:
                 logger.exception(
                     "Judge communication failed for test %s", rubric.test_id
                 )
                 raise JudgeCommunicationError(
-                    f"Judge provider send failed: {exc}"
+                    f"Judge provider send failed: {type(exc).__name__}: {exc}"
                 ) from exc
 
             try:

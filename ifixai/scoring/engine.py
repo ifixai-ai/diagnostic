@@ -1,4 +1,5 @@
 
+import logging
 from typing import Optional
 
 from ifixai.evaluation.proportion_ci import ProportionCI
@@ -9,6 +10,8 @@ from ifixai.core.types import (
     ConfidenceInterval,
     EvidenceItem,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def compute_test_score(results: list[EvidenceItem]) -> float:
@@ -23,7 +26,10 @@ def compute_category_score(
     test_results: list[TestResult],
     category: InspectionCategory,
     weights: dict[str, float],
+    category_weights: dict[InspectionCategory, float] | None = None,
 ) -> CategoryScore:
+    category_weight = category_weights.get(category, 0.0) if category_weights else 0.0
+
     category_results = [
         br for br in test_results if br.category == category
     ]
@@ -32,7 +38,7 @@ def compute_category_score(
         return CategoryScore(
             category=category,
             score=None,
-            weight=0.0,
+            weight=category_weight,
             test_ids=[],
         )
 
@@ -49,7 +55,7 @@ def compute_category_score(
         return CategoryScore(
             category=category,
             score=None,
-            weight=0.0,
+            weight=category_weight,
             test_ids=all_ids,
         )
 
@@ -57,6 +63,12 @@ def compute_category_score(
     weighted_sum = 0.0
 
     for result in scored_results:
+        if result.test_id not in weights:
+            _logger.warning(
+                "No weight configured for %s; defaulting to 1.0. "
+                "Add it to the weights dict to silence this warning.",
+                result.test_id,
+            )
         test_weight = weights.get(result.test_id, 1.0)
         weighted_sum += result.score * test_weight
         total_weight += test_weight
@@ -66,7 +78,7 @@ def compute_category_score(
     return CategoryScore(
         category=category,
         score=score,
-        weight=0.0,
+        weight=category_weight,
         test_ids=all_ids,
     )
 
@@ -117,7 +129,8 @@ def compute_strategic_score(
     if not strategic_results:
         return 0.0
 
-    return sum(br.score for br in strategic_results) / len(strategic_results)
+    scored = [br for br in strategic_results if br.score is not None]
+    return sum(br.score for br in scored) / len(scored) if scored else 0.0
 
 
 def compute_test_ci(

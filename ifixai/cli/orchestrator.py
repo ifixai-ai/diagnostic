@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from collections import Counter
 
 import click
@@ -7,17 +8,20 @@ import click
 from ifixai.api import run_inspections, run_single, run_strategic
 from ifixai.core.concurrency import ConcurrencyGovernor
 from ifixai.core.fixture_loader import load_fixture
+from ifixai.harness.registry import ALL_SPECS, SPEC_BY_ID
 from ifixai.judge.config import JudgeConfig, JudgeProviderSpec
 from ifixai.providers.resolver import (
     _PROVIDER_CREDENTIAL_ENV_VARS,
     detect_available_credentials,
     select_cross_provider_judge,
 )
+from ifixai.scoring.category_weights import STRATEGIC_TEST_IDS
 from ifixai.core.types import (
     TestResult,
     TestRunResult,
     EvaluationMethod,
     EvaluationPipelineConfig,
+    InspectionCategory,
 )
 
 
@@ -185,25 +189,138 @@ def _print_insufficient_evidence_summary(result: TestRunResult) -> None:
     insufficient = [br for br in result.test_results if br.insufficient_evidence]
     total = len(result.test_results)
     if not insufficient:
-        click.echo(click.style(f"0 out of {total} tests have failed.", fg="green"))
+        click.echo(
+            click.style(
+                f"All {total} tests produced sufficient evidence to be scored.",
+                fg="green",
+            )
+        )
         return
     inspection_ids = ", ".join(sorted(br.test_id for br in insufficient))
     click.echo(
         click.style(
-            f"{len(insufficient)} out of {total} tests have failed "
-            f"({inspection_ids}). Wrap your provider in a governance layer "
-            f"or run with ≥2 provider credentials. See docs/methodology.md.",
+            f"{len(insufficient)} out of {total} tests had insufficient evidence "
+            f"to be scored ({inspection_ids}). The remaining tests were scored but "
+            f"may still be below threshold -- see the per-category bars above. "
+            f"Wrap your provider in a governance layer or run with ≥2 provider "
+            f"credentials. See docs/methodology.md.",
             fg="yellow",
         )
     )
 
 
-def _progress_callback(
+_CATEGORY_BAR_COLOR: dict[str, str] = {
+    InspectionCategory.FABRICATION.value:      "\033[91m",  # bright red
+    InspectionCategory.MANIPULATION.value:     "\033[91m",  # bright red
+    InspectionCategory.DECEPTION.value:        "\033[95m",  # bright magenta
+    InspectionCategory.UNPREDICTABILITY.value: "\033[93m",  # bright yellow
+    InspectionCategory.OPACITY.value:          "\033[94m",  # bright blue
+}
+_RESET  = "\033[0m"
+_RED    = "\033[91m"
+_GREEN  = "\033[92m"
+_YELLOW = "\033[93m"
+_DIM    = "\033[2m"
+_BOLD   = "\033[1m"
+_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+
+class BenchmarkProgressDisplay:
+    """Live animated display: pre-prints all benchmarks then updates in-place."""
+
+    def __init__(self, tests: list[tuple[str, str]]) -> None:
+        self._tests = tests  # [(test_id, name), ...]
+        self._results: dict[str, TestResult] = {}
+        self._frame_idx = 0
+        self._lock = threading.Lock()
+        self._done = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        for test_id, name in self._tests:
+            sys.stdout.write(f"  {_YELLOW}⠋{_RESET} {_DIM}{test_id}{_RESET} {name}\n")
+        sys.stdout.flush()
+        self._thread = threading.Thread(target=self._animate, daemon=True)
+        self._thread.start()
+
+    def update(self, test_id: str, index: int, total: int, result: TestResult) -> None:
+        with self._lock:
+            self._results[test_id] = result
+
+    def stop(self) -> None:
+        self._done.set()
+        if self._thread:
+            self._thread.join(timeout=2.0)
+        self._redraw(final=True)
+
+    def _animate(self) -> None:
+        while not self._done.wait(timeout=0.1):
+            self._frame_idx = (self._frame_idx + 1) % len(_SPINNER_FRAMES)
+            self._redraw()
+
+    def _build_lines(self, final: bool = False) -> list[str]:
+        lines: list[str] = []
+        with self._lock:
+            frame = _SPINNER_FRAMES[self._frame_idx]
+            for test_id, name in self._tests:
+                if test_id in self._results:
+                    result = self._results[test_id]
+                    if result.passing:
+                        icon   = f"{_GREEN}✓{_RESET}"
+                        status = f"{_GREEN}PASS{_RESET}"
+                    else:
+                        icon   = f"{_RED}✗{_RESET}"
+                        status = f"{_RED}FAIL{_RESET}"
+                    lines.append(
+                        f"  {icon} {_BOLD}{test_id}{_RESET} {name} "
+                        f"... {status} ({result.score:.0%})"
+                    )
+                else:
+                    spinner = "·" if final else frame
+                    lines.append(
+                        f"  {_YELLOW}{spinner}{_RESET} {_DIM}{test_id}{_RESET} {name}"
+                    )
+        return lines
+
+    def _redraw(self, final: bool = False) -> None:
+        n = len(self._tests)
+        if n == 0:
+            return
+        lines = self._build_lines(final=final)
+        sys.stdout.write(f"\033[{n}A")
+        for line in lines:
+            sys.stdout.write(f"\r\033[K{line}\n")
+        sys.stdout.flush()
+
+
+def _print_category_summary(result: TestRunResult) -> None:
+    if not result.category_scores:
+        return
+    bar_width = 22
+    click.echo()
+    for cs in result.category_scores:
+        color = _CATEGORY_BAR_COLOR.get(cs.category.value, "\033[96m")
+        bar = color + ("█" * bar_width) + _RESET
+        failed = cs.test_count - cs.tests_passed
+        count_str = f"{cs.test_count}/{cs.test_count}"
+        if cs.test_count == 0:
+            fail_str = f"{_DIM}— no scored tests{_RESET}"
+        elif failed > 0:
+            fail_str = f"{_RED}× {failed} failed{_RESET}"
+        else:
+            fail_str = f"{_GREEN}✓ all passed{_RESET}"
+        name = cs.category.value.ljust(16)
+        click.echo(f"  {name} [{bar}]  {count_str:>5}  {fail_str}")
+    click.echo()
+
+
+def _progress_callback_plain(
     bid: str,
     index: int,
     total: int,
     bench_result: TestResult,
 ) -> None:
+    """Fallback used when stdout is not a TTY (e.g. piped/redirected)."""
     status_label = (
         click.style("PASS", fg="green")
         if bench_result.passing
@@ -213,6 +330,20 @@ def _progress_callback(
         f"  [{index}/{total}] {bid} {bench_result.name} ... "
         f"{status_label} ({bench_result.score:.0%})"
     )
+
+
+def _build_display_tests(
+    strategic: bool,
+    test_id: str | None,
+) -> list[tuple[str, str]]:
+    if test_id:
+        uid = test_id.upper()
+        spec = SPEC_BY_ID.get(uid)
+        return [(uid, spec.name if spec else uid)]  # type: ignore[union-attr]
+    if strategic:
+        strategic_set = set(STRATEGIC_TEST_IDS)
+        return [(s.test_id, s.name) for s in ALL_SPECS if s.test_id in strategic_set]
+    return [(s.test_id, s.name) for s in ALL_SPECS]
 
 
 async def execute_tests(
@@ -242,7 +373,15 @@ async def execute_tests(
         click.echo(click.style(f"Fixture error: {exc}", fg="red"))
         return None
 
-    effective_callback = progress_callback or _progress_callback
+    use_display = progress_callback is None and sys.stdout.isatty()
+    display: BenchmarkProgressDisplay | None = None
+
+    if use_display:
+        display = BenchmarkProgressDisplay(_build_display_tests(strategic, test_id))
+        display.start()
+        effective_callback = display.update
+    else:
+        effective_callback = progress_callback or _progress_callback_plain
 
     try:
         if test_id:
@@ -260,15 +399,18 @@ async def execute_tests(
                 sut_temperature=sut_temperature,
                 sut_seed=sut_seed,
             )
-            status_label = (
-                click.style("PASS", fg="green")
-                if single_result.passing
-                else click.style("FAIL", fg="red")
-            )
-            click.echo(
-                f"  [1/1] {test_id} {single_result.name} ... "
-                f"{status_label} ({single_result.score:.0%})"
-            )
+            if display:
+                display.update(test_id, 1, 1, single_result)
+            else:
+                status_label = (
+                    click.style("PASS", fg="green")
+                    if single_result.passing
+                    else click.style("FAIL", fg="red")
+                )
+                click.echo(
+                    f"  [1/1] {test_id} {single_result.name} ... "
+                    f"{status_label} ({single_result.score:.0%})"
+                )
             return TestRunResult(
                 system_name=system_name,
                 system_version=system_version,
@@ -324,3 +466,7 @@ async def execute_tests(
     except Exception as exc:
         click.echo(click.style(f"Test execution failed: {exc}", fg="red"))
         return None
+
+    finally:
+        if display:
+            display.stop()

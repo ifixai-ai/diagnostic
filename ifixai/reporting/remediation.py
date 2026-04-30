@@ -111,8 +111,9 @@ TEST_REMEDIATION_MAP: dict[str, str] = {
         "context leakage between concurrent sessions."
     ),
     "B28": (
-        "Implement data protection barriers and documentation that "
-        "prevent training data contamination of governance decisions."
+        "Harden the RAG context boundary against indirect prompt injection. "
+        "Ensure retrieved content cannot override system instructions, suspend "
+        "policies, or elevate user permissions at runtime."
     ),
     "B29": (
         "Ensure semantically equivalent requests phrased differently "

@@ -47,7 +47,7 @@ class EvaluationMode(str, Enum):
     DETERMINISTIC = "deterministic"
     SINGLE = "single"
     FULL = "full"
-    SELF = "self"  # Group C (FR-015) — system-under-test acts as its own judge
+    SELF = "self"  # system-under-test acts as its own judge
 
 class RunMode(str, Enum):
 

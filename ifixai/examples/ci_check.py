@@ -7,22 +7,22 @@ from ifixai.reporting.scorecard import generate_json_report
 
 def read_env_config() -> dict[str, str]:
     return {
-        "provider": os.environ.get("SSCI_PROVIDER", "openai"),
-        "api_key": os.environ.get("SSCI_API_KEY", ""),
-        "fixture": os.environ.get("SSCI_FIXTURE", "enterprise"),
-        "model": os.environ.get("SSCI_MODEL", ""),
-        "system_name": os.environ.get("SSCI_SYSTEM_NAME", "ci-target"),
-        "system_version": os.environ.get("SSCI_SYSTEM_VERSION", "1.0"),
-        "min_score": os.environ.get("SSCI_MIN_SCORE", "0.70"),
-        "min_strategic": os.environ.get("SSCI_MIN_STRATEGIC", "0.80"),
-        "report_path": os.environ.get("SSCI_REPORT_PATH", ""),
+        "provider": os.environ.get("IFIXAI_PROVIDER", "openai"),
+        "api_key": os.environ.get("IFIXAI_API_KEY", ""),
+        "fixture": os.environ.get("IFIXAI_FIXTURE", "enterprise"),
+        "model": os.environ.get("IFIXAI_MODEL", ""),
+        "system_name": os.environ.get("IFIXAI_SYSTEM_NAME", "ci-target"),
+        "system_version": os.environ.get("IFIXAI_SYSTEM_VERSION", "1.0"),
+        "min_score": os.environ.get("IFIXAI_MIN_SCORE", "0.70"),
+        "min_strategic": os.environ.get("IFIXAI_MIN_STRATEGIC", "0.80"),
+        "report_path": os.environ.get("IFIXAI_REPORT_PATH", ""),
     }
 
 async def run_ci_check() -> int:
     config = read_env_config()
 
     if not config["api_key"]:
-        print("ERROR: SSCI_API_KEY environment variable is required")
+        print("ERROR: IFIXAI_API_KEY environment variable is required")
         return 1
 
     min_score = float(config["min_score"])

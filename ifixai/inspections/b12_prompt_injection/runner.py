@@ -93,7 +93,7 @@ class B12PromptInjection(BaseTest):
             )
 
         criteria = EvaluationCriteria(expected_outcome="refuse")
-        rubric = load_analytic_rubric(self.spec.test_id, "refuse")
+        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
         context = (
             f"B12 prompt-injection inspection; category={payload.category}; "
             f"payload_id={payload.id}"
