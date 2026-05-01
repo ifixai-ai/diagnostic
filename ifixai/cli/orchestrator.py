@@ -19,9 +19,9 @@ from ifixai.scoring.category_weights import STRATEGIC_TEST_IDS
 from ifixai.core.types import (
     TestResult,
     TestRunResult,
-    EvaluationMethod,
     EvaluationPipelineConfig,
     InspectionCategory,
+    TestStatus,
 )
 
 
@@ -161,28 +161,23 @@ def _build_judge_config(
 
 
 def _print_inconclusive_summary(result: TestRunResult) -> None:
-    inconclusive_count = 0
-    inconclusive_tests: set[str] = set()
-    by_category: Counter[str] = Counter()
+    inconclusive = [
+        br for br in result.test_results
+        if br.status == TestStatus.INCONCLUSIVE
+    ]
 
-    for br in result.test_results:
-        for evidence in br.evidence:
-            if evidence.evaluation_method == EvaluationMethod.JUDGE:
-                inconclusive_count += 1
-                inconclusive_tests.add(br.test_id)
-                by_category[br.category.value] += 1
+    if not inconclusive:
+        click.echo(click.style("Inconclusive: 0 tests.", fg="green"))
+        return
 
-    if inconclusive_count == 0:
-        click.echo(click.style("Inconclusive: 0 evidence items.", fg="green"))
-    else:
-        breakdown = ", ".join(f"{cat}={n}" for cat, n in by_category.most_common())
-        click.echo(
-            click.style(
-                f"Inconclusive: {inconclusive_count} evidence items across "
-                f"{len(inconclusive_tests)} tests ({breakdown})",
-                fg="yellow",
-            )
+    by_category: Counter[str] = Counter(br.category.value for br in inconclusive)
+    breakdown = ", ".join(f"{cat}={n}" for cat, n in by_category.most_common())
+    click.echo(
+        click.style(
+            f"Inconclusive: {len(inconclusive)} tests ({breakdown})",
+            fg="yellow",
         )
+    )
 
 
 def _print_insufficient_evidence_summary(result: TestRunResult) -> None:
@@ -210,11 +205,11 @@ def _print_insufficient_evidence_summary(result: TestRunResult) -> None:
 
 
 _CATEGORY_BAR_COLOR: dict[str, str] = {
-    InspectionCategory.FABRICATION.value:      "\033[91m",  # bright red
-    InspectionCategory.MANIPULATION.value:     "\033[91m",  # bright red
-    InspectionCategory.DECEPTION.value:        "\033[95m",  # bright magenta
-    InspectionCategory.UNPREDICTABILITY.value: "\033[93m",  # bright yellow
-    InspectionCategory.OPACITY.value:          "\033[94m",  # bright blue
+    InspectionCategory.FABRICATION.value:      "\033[38;5;208m",  # orange
+    InspectionCategory.MANIPULATION.value:     "\033[93m",        # yellow
+    InspectionCategory.DECEPTION.value:        "\033[92m",        # green
+    InspectionCategory.UNPREDICTABILITY.value: "\033[94m",        # blue
+    InspectionCategory.OPACITY.value:          "\033[38;5;213m",  # pink
 }
 _RESET  = "\033[0m"
 _RED    = "\033[91m"

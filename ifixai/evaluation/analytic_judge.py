@@ -46,7 +46,7 @@ _JUDGE_TIMEOUT: float = 30.0
 _TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
 _rubric_cache: dict[str, Optional[AnalyticRubric]] = {}
-_rubric_cache_lock: Optional[asyncio.Lock] = None
+_rubric_cache_lock: asyncio.Lock = asyncio.Lock()
 
 def _resolve_rubric_path(test_id: str) -> Optional[Path]:
     test_id_lower = test_id.lower().replace("-", "").replace("ime", "")
@@ -63,10 +63,6 @@ async def load_analytic_rubric(
     test_id: str,
     outcome_type: str,
 ) -> Optional[AnalyticRubric]:
-    global _rubric_cache_lock
-    if _rubric_cache_lock is None:
-        _rubric_cache_lock = asyncio.Lock()
-
     cache_key = f"{test_id}:{outcome_type}"
     if cache_key in _rubric_cache:
         return _rubric_cache[cache_key]
