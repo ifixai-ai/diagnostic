@@ -1,3 +1,5 @@
+import sys
+
 import click
 
 from ifixai._version import VERSION
@@ -21,7 +23,24 @@ ifixai_cli.add_command(validate)
 ifixai_cli.add_command(compare)
 
 
+def _ensure_utf8_stdout() -> None:
+    if sys.platform != "win32":
+        return
+    import io
+    def _fix(stream):  # noqa: E306
+        enc = getattr(stream, "encoding", "") or ""
+        if enc.lower().replace("-", "") == "utf8":
+            return stream
+        buf = getattr(stream, "buffer", None)
+        if buf is None:
+            return stream
+        return io.TextIOWrapper(buf, encoding="utf-8", errors="replace")
+    sys.stdout = _fix(sys.stdout)
+    sys.stderr = _fix(sys.stderr)
+
+
 def main() -> None:
+    _ensure_utf8_stdout()
     ifixai_cli()
 
 

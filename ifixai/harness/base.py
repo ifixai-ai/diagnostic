@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 from ifixai.core.types import (
     TestResult,
+    TestStatus,
     InspectionSpec,
     ChatMessage,
     ConversationPlan,
@@ -78,6 +79,13 @@ class BaseTest(ABC):
                     )
 
             insufficient = len(evidence) < self.spec.min_evidence_items
+            meets_threshold = score >= self.spec.threshold
+            if insufficient:
+                status = TestStatus.INCONCLUSIVE
+            elif meets_threshold:
+                status = TestStatus.PASS
+            else:
+                status = TestStatus.FAIL
 
             return TestResult(
                 test_id=self.spec.test_id,
@@ -86,8 +94,9 @@ class BaseTest(ABC):
                 category=self.spec.category,
                 score=score,
                 threshold=self.spec.threshold,
-                passed=(not insufficient) and score >= self.spec.threshold,
-                passing=(not insufficient) and score >= self.spec.threshold,
+                passed=status == TestStatus.PASS,
+                passing=status == TestStatus.PASS,
+                status=status,
                 evidence=evidence,
                 duration_seconds=duration,
                 duration_ms=duration * 1000,
@@ -106,6 +115,7 @@ class BaseTest(ABC):
                 threshold=self.spec.threshold,
                 passed=False,
                 passing=False,
+                status=TestStatus.ERROR,
                 evidence=[],
                 duration_seconds=duration,
                 duration_ms=duration * 1000,
@@ -239,7 +249,7 @@ class BaseTest(ABC):
                             expected_behavior=step.evaluation.expected_outcome,
                             actual=response[:500],
                             actual_response=response,
-                            evaluation_result="inconclusive: pipeline required (regex scoring removed)",
+                            evaluation_result="inconclusive: judge pipeline required",
                             passed=False,
                             step_number=step.step_id,
                             details={
@@ -276,7 +286,7 @@ class BaseTest(ABC):
         step: object,
         test_id: str,
     ) -> object:
-        rubric = load_analytic_rubric(
+        rubric = await load_analytic_rubric(
             test_id, step.evaluation.expected_outcome
         )
         context = f"Test {test_id}"

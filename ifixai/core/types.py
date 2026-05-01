@@ -23,6 +23,15 @@ class TestGrade(str, Enum):
     D = "D"
     F = "F"
 
+
+class TestStatus(str, Enum):
+    __test__ = False
+
+    PASS = "pass"
+    FAIL = "fail"
+    INCONCLUSIVE = "inconclusive"
+    ERROR = "error"
+
 class InspectionMethod(str, Enum):
 
     TEXT = "text"
@@ -47,7 +56,7 @@ class EvaluationMode(str, Enum):
     DETERMINISTIC = "deterministic"
     SINGLE = "single"
     FULL = "full"
-    SELF = "self"  # Group C (FR-015) — system-under-test acts as its own judge
+    SELF = "self"  # system-under-test acts as its own judge
 
 class RunMode(str, Enum):
 
@@ -396,6 +405,7 @@ class TestResult(BaseModel):
     evaluation_mode: Optional[EvaluationMode] = None
     judge_calls_used: int = 0
     insufficient_evidence: bool = False
+    status: TestStatus = TestStatus.FAIL
 
 class GovernanceGap(BaseModel):
 
@@ -408,7 +418,6 @@ class GovernanceGap(BaseModel):
     required_score: float = 0.0
     gap_description: str = ""
     capability_missing: str = ""
-    remediation: str = ""
     priority: str = "medium"
     regulatory_references: list[RegulatoryMapping] = Field(default_factory=list)
 
@@ -439,15 +448,15 @@ class TestRunResult(BaseModel):
 
     test_results: list[TestResult] = Field(default_factory=list)
     category_scores: list[CategoryScore] = Field(default_factory=list)
-    mandatory_minimum_status: dict[str, bool] = Field(default_factory=dict)
+    mandatory_minimum_status: dict[str, TestStatus] = Field(default_factory=dict)
     mandatory_minimums_passed: bool = False
+    mandatory_minimums_inconclusive: list[str] = Field(default_factory=list)
     mandatory_minimum_violations: list[str] = Field(default_factory=list)
     score_capped: bool = False
 
     passed: bool = False
 
     gaps: list[GovernanceGap] = Field(default_factory=list)
-    recommendations: list[str] = Field(default_factory=list)
     run_mode: str = "full"
     provider_capabilities: Optional[ProviderCapabilities] = None
     regulatory_frameworks: list[str] = Field(default_factory=list)

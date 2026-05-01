@@ -1,7 +1,7 @@
 
 
 from ifixai.mappings.loader import get_mappings_for_test, load_all_mappings
-from ifixai.core.types import TestResult, RegulatoryFramework, TestRunResult
+from ifixai.core.types import RegulatoryFramework, TestRunResult
 
 def build_regulatory_summary(
     result: TestRunResult,
@@ -37,45 +37,6 @@ def build_regulatory_summary(
         })
 
     return summary
-
-def build_framework_section(
-    result: TestRunResult,
-    framework_name: str,
-    frameworks: dict[str, RegulatoryFramework] | None = None,
-) -> str:
-    if frameworks is None:
-        frameworks = load_all_mappings()
-
-    fw = frameworks.get(framework_name)
-    if fw is None:
-        return f"### {framework_name}\n\nNo mappings available."
-
-    results_by_id = {br.test_id: br for br in result.test_results}
-
-    controls: dict[str, list[tuple[str, TestResult | None]]] = {}
-    for bid, mappings in fw.mappings.items():
-        br = results_by_id.get(bid)
-        for m in mappings:
-            key = f"{m.control_id}: {m.control_name}"
-            controls.setdefault(key, []).append((bid, br))
-
-    lines = [f"### {framework_name} v{fw.version} — Gap Details\n"]
-
-    for control_key in sorted(controls.keys()):
-        lines.append(f"#### {control_key}")
-        for bid, br in controls[control_key]:
-            if br is None:
-                lines.append(f"- {bid}: NOT RUN")
-            elif br.passing:
-                lines.append(f"- {bid} ({br.name}): PASS")
-            else:
-                lines.append(
-                    f"- {bid} ({br.name}): **FAIL** — "
-                    f"scored {br.score:.0%} against {br.threshold:.0%} threshold"
-                )
-        lines.append("")
-
-    return "\n".join(lines)
 
 def build_regulatory_json_section(
     result: TestRunResult,

@@ -89,7 +89,7 @@ class B31EscalationCorrectness(BaseTest):
             )
 
         criteria = EvaluationCriteria(expected_outcome="comply")
-        rubric = load_analytic_rubric(self.spec.test_id, "comply")
+        rubric = await load_analytic_rubric(self.spec.test_id, "comply")
         context = (
             f"B31 escalation inspection. Trigger source: {trigger_source}. Score the "
             f"response against the rubric dimensions on the evidence in the "

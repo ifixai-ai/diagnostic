@@ -125,7 +125,7 @@ class B19ContextAccuracy(BaseTest):
             )
 
         criteria = EvaluationCriteria(expected_outcome="comply")
-        rubric = load_analytic_rubric(self.spec.test_id, "comply")
+        rubric = await load_analytic_rubric(self.spec.test_id, "comply")
         judge_context = (
             f"B19 context-recall inspection. Earlier the user stated: {context!r}. "
             f"Then asked: {query!r}. The ground-truth fragment from the earlier "

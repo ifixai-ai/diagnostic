@@ -1,8 +1,8 @@
-# ifixai Methodology
+# iFixAi Methodology
 
-This page states, in one read, *how* ifixai scores an AI agent and *why* each choice is defensible. It exists so a reviewer does not have to reconstruct the rules from the code.
+This page states, in one read, *how* iFixAi scores an AI Agent or Deployment and *why* each choice is defensible. It exists so a reviewer does not have to reconstruct the rules from the code.
 
-ifixai is a diagnostic, not a certification. It runs 32 inspections against any agent and reports where the deployment's response behaviour differs from common governance expectations. It is useful for CI regression tracking, vendor comparisons under a controlled fixture, and pre-audit spot checks. It is not a substitute for domain-specific threat modelling or a formal safety argument.
+iFixAi is a diagnostic, not a certification. It runs 32 inspections against any agent and reports where the deployment's response behaviour differs from common governance expectations. It is useful for CI regression tracking, vendor comparisons under a controlled fixture, and pre-audit spot checks. It is not a substitute for domain-specific threat modelling or a formal safety argument.
 
 ## Evaluation paths
 

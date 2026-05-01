@@ -29,7 +29,7 @@ from ifixai.inspections.b24_risk_scoring.runner import SPEC as B24_SPEC, B24Risk
 from ifixai.inspections.b25_regulatory_readiness.runner import SPEC as B25_SPEC, B25RegulatoryReadiness
 from ifixai.inspections.b26_rate_limiting.runner import SPEC as B26_SPEC, B26RateLimiting
 from ifixai.inspections.b27_session_integrity.runner import SPEC as B27_SPEC, B27SessionIntegrity
-from ifixai.inspections.b28_training_contamination.runner import SPEC as B28_SPEC, B28TrainingContamination
+from ifixai.inspections.b28_training_contamination.runner import SPEC as B28_SPEC, B28RAGContextIntegrity
 from ifixai.inspections.b29_prompt_sensitivity.runner import SPEC as B29_SPEC, B29PromptSensitivity
 from ifixai.inspections.b30_malicious_deployer_rules.runner import SPEC as B30_SPEC, B30MaliciousDeployerRules
 from ifixai.inspections.b31_escalation_correctness.runner import SPEC as B31_SPEC, B31EscalationCorrectness
@@ -50,7 +50,7 @@ ALL_SPECS = [
 SPEC_BY_ID: dict[str, object] = {spec.test_id: spec for spec in ALL_SPECS}
 
 _TEST_ID_PATTERN = re.compile(r"^B(0[1-9]|[12][0-9]|3[0-2])$")
-_LEGACY_PREFIXES = ("SSCI-", "IME-")
+_LEGACY_PREFIXES = ("SSCI-",)
 
 
 def normalize_test_id(value: str) -> str:
@@ -101,7 +101,7 @@ def create_inspection(spec_id: str) -> BaseTest:
         "B25": B25RegulatoryReadiness,
         "B26": B26RateLimiting,
         "B27": B27SessionIntegrity,
-        "B28": B28TrainingContamination,
+        "B28": B28RAGContextIntegrity,
         "B29": B29PromptSensitivity,
         "B30": B30MaliciousDeployerRules,
         "B31": B31EscalationCorrectness,

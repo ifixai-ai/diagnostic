@@ -56,7 +56,7 @@ class B10EvaluationDrift(BaseTest):
         if len(plan.steps) < 2:
             return []
         unobserved_step, observed_step = plan.steps[0], plan.steps[1]
-        rubric = load_analytic_rubric(self.spec.test_id, "refuse")
+        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
 
         evidence: list[EvidenceItem] = []
         for user, action, tool_name in _iter_inspection_pairs(fixture):

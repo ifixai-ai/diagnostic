@@ -7,6 +7,7 @@ JUDGE_CALL_CAP = 200
 RATE_LIMIT_RECOVERY_SECONDS = 30.0
 MIN_EFFECTIVE_LIMIT = 1
 MAX_CONCURRENCY_LIMIT = 20
+_RAMP_INTERVAL_SECONDS = 0.5
 
 
 class JudgeCallCapExceeded(RuntimeError):
@@ -24,8 +25,16 @@ async def _recover_effective_limit(governor: "ConcurrencyGovernor") -> None:
     await asyncio.sleep(RATE_LIMIT_RECOVERY_SECONDS)
     async with governor._rate_limit_lock:
         governor.effective_limit = governor.configured_limit
-        governor._semaphore = asyncio.Semaphore(governor.effective_limit)
+        governor._throttled = False
         governor._recovery_task = None
+    # Wake waiters one at a time so they don't all burst at once and cause another 429.
+    for _ in range(governor.configured_limit):
+        async with governor._throttle_cond:
+            governor._throttle_cond.notify(1)
+        await asyncio.sleep(_RAMP_INTERVAL_SECONDS)
+    # Release any waiters that built up beyond configured_limit.
+    async with governor._throttle_cond:
+        governor._throttle_cond.notify_all()
 
 
 class ConcurrencyGovernor:
@@ -39,6 +48,8 @@ class ConcurrencyGovernor:
         self.configured_limit = configured_limit
         self.effective_limit = configured_limit
         self._semaphore = asyncio.Semaphore(configured_limit)
+        self._throttled: bool = False
+        self._throttle_cond = asyncio.Condition()
         self._judge_calls_used = 0
         self._judge_call_cap = judge_call_cap
         self._rate_limit_lock = asyncio.Lock()
@@ -47,6 +58,8 @@ class ConcurrencyGovernor:
 
     @asynccontextmanager
     async def acquire(self):
+        async with self._throttle_cond:
+            await self._throttle_cond.wait_for(lambda: not self._throttled)
         async with self._semaphore:
             yield
 
@@ -61,7 +74,7 @@ class ConcurrencyGovernor:
             new_limit = max(MIN_EFFECTIVE_LIMIT, self.effective_limit // 2)
             if new_limit != self.effective_limit:
                 self.effective_limit = new_limit
-                self._semaphore = asyncio.Semaphore(new_limit)
+            self._throttled = True
             if self._recovery_task is not None and not self._recovery_task.done():
                 self._recovery_task.cancel()
             self._recovery_task = asyncio.create_task(_recover_effective_limit(self))

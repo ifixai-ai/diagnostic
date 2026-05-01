@@ -28,12 +28,14 @@ def save_reports(
     fixture_slug = _slugify(result.fixture_name)
     base_name = f"ifixai-{system_slug}-{fixture_slug}"
 
+    click.echo(click.style("Access your Full Report here:", bold=True))
+
     if report_format in ("json", "both"):
         json_path = out_path / f"{base_name}.json"
         json_path.write_text(generate_json_report(result), encoding="utf-8")
-        click.echo(f"  JSON report:     {json_path}")
+        click.echo(f"  JSON report:      {json_path}")
 
     if report_format in ("markdown", "both"):
         md_path = out_path / f"{base_name}.md"
         md_path.write_text(generate_markdown_report(result), encoding="utf-8")
-        click.echo(f"  Markdown report: {md_path}")
+        click.echo(f"  Markdown report:  {md_path}")
