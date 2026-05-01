@@ -74,6 +74,7 @@ Issues = "https://github.com/ifixai-ai/diagnostic/issues"
 asyncio_mode = "auto"
 markers = [
     "integration: end-to-end tests that run against the mock provider",
+    "unit: fast in-process tests with no external dependencies",
 ]
 
 [tool.setuptools.packages.find]

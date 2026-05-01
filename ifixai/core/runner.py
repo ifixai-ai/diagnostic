@@ -41,10 +41,10 @@ from ifixai.judge.evaluator import EnsembleJudgeEvaluator, JudgeEvaluator
 from ifixai.core.types import (
     InspectionCategory,
     TestResult,
+    TestStatus,
     InspectionSpec,
     EvaluationPipelineConfig,
     Fixture,
-    GovernanceGap,
     ProviderCapabilities,
     ProviderConfig,
     TestRunResult,
@@ -406,10 +406,14 @@ def _build_result(
         test_results, STRATEGIC_TEST_IDS
     )
     gaps = identify_gaps(test_results)
-    recommendations = _generate_recommendations(gaps)
 
     violations = [
-        bid for bid, passed in minimum_status.items() if not passed
+        bid for bid, status in minimum_status.items()
+        if status == TestStatus.FAIL
+    ]
+    inconclusive_minimums = [
+        bid for bid, status in minimum_status.items()
+        if status == TestStatus.INCONCLUSIVE
     ]
 
     combined_warnings = list(warnings) if warnings else []
@@ -457,39 +461,15 @@ def _build_result(
         category_scores=category_scores,
         mandatory_minimum_status=minimum_status,
         mandatory_minimums_passed=minimums_passed,
+        mandatory_minimums_inconclusive=inconclusive_minimums,
         mandatory_minimum_violations=violations,
         score_capped=cap_bound,
         gaps=gaps,
-        recommendations=recommendations,
         run_mode=run_mode,
         provider_capabilities=provider_capabilities,
         judge_stats=judge_stats,
         warnings=combined_warnings,
     )
-
-def _generate_recommendations(gaps: list[GovernanceGap]) -> list[str]:
-    if not gaps:
-        return ["All tests passed. Maintain current governance posture."]
-
-    sorted_gaps = sorted(
-        gaps, key=lambda g: g.required_score - g.current_score, reverse=True
-    )
-
-    recommendations: list[str] = []
-    for gap in sorted_gaps:
-        score_pct = f"{gap.current_score:.0%}"
-        required_pct = f"{gap.required_score:.0%}"
-        deficit = gap.required_score - gap.current_score
-
-        recommendation = (
-            f"{gap.test_id} — {gap.capability_missing}: "
-            f"Current score {score_pct} is {deficit:.0%} below the "
-            f"required {required_pct}. "
-            f"{gap.remediation}"
-        )
-        recommendations.append(recommendation)
-
-    return recommendations
 
 def _find_spec(test_id: str, specs: list[InspectionSpec]) -> InspectionSpec | None:
     for spec in specs:

@@ -881,14 +881,24 @@ def run(
 
     click.echo()
     click.echo(click.style("Results", bold=True))
+    scored_categories = sum(1 for cs in result.category_scores if cs.score is not None)
+    total_categories = len(result.category_scores)
+    coverage_suffix = (
+        f"  ({scored_categories}/{total_categories} categories scored)"
+        if 0 < scored_categories < total_categories
+        else ""
+    )
+    score_label = (
+        "Partial Score:" if coverage_suffix else "Overall Score:"
+    )
     if result.self_judged:
         redacted = click.style("SELF-JUDGED (redacted)", fg="yellow")
-        click.echo(f"  Overall Score:    {redacted}")
+        click.echo(f"  {score_label}    {redacted}{coverage_suffix}")
         click.echo(f"  Grade:            {redacted}")
         click.echo(f"  Strategic Score:  {redacted}")
         click.echo(f"  Passed:           {redacted}")
     else:
-        click.echo(f"  Overall Score:    {result.overall_score:.1%}")
+        click.echo(f"  {score_label}    {result.overall_score:.1%}{coverage_suffix}")
         click.echo(f"  Grade:            {result.grade.value}")
         click.echo(f"  Strategic Score:  {result.strategic_score:.1%}")
         verdict = (
@@ -964,9 +974,18 @@ def run(
         )
         sys.exit(2)
     if result.overall_score < min_score:
+        scored_categories = sum(1 for cs in result.category_scores if cs.score is not None)
+        total_categories = len(result.category_scores)
+        coverage_suffix = (
+            f" ({scored_categories}/{total_categories} categories scored)"
+            if 0 < scored_categories < total_categories
+            else ""
+        )
+        score_label = "Partial score" if coverage_suffix else "Score"
         click.echo(
             click.style(
-                f"Score {result.overall_score:.1%} is below minimum {min_score:.1%}",
+                f"{score_label} {result.overall_score:.1%}{coverage_suffix} "
+                f"is below minimum {min_score:.1%}",
                 fg="red",
             )
         )

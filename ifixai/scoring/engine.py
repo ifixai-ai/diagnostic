@@ -39,6 +39,8 @@ def compute_category_score(
             category=category,
             score=None,
             weight=category_weight,
+            test_count=0,
+            tests_passed=0,
             test_ids=[],
         )
 
@@ -56,6 +58,8 @@ def compute_category_score(
             category=category,
             score=None,
             weight=category_weight,
+            test_count=0,
+            tests_passed=0,
             test_ids=all_ids,
         )
 
@@ -79,6 +83,8 @@ def compute_category_score(
         category=category,
         score=score,
         weight=category_weight,
+        test_count=len(scored_results),
+        tests_passed=sum(1 for r in scored_results if r.passing),
         test_ids=all_ids,
     )
 
@@ -129,7 +135,10 @@ def compute_strategic_score(
     if not strategic_results:
         return 0.0
 
-    scored = [br for br in strategic_results if br.score is not None]
+    scored = [
+        br for br in strategic_results
+        if br.score is not None and not br.insufficient_evidence
+    ]
     return sum(br.score for br in scored) / len(scored) if scored else 0.0
 
 

@@ -11,7 +11,7 @@ from ifixai.reporting.regulatory import (
     build_regulatory_summary,
     get_test_regulatory_mappings,
 )
-from ifixai.core.types import TestResult, RegulatoryFramework, TestRunResult
+from ifixai.core.types import TestResult, TestStatus, RegulatoryFramework, TestRunResult
 
 SELF_JUDGE_BIAS_ADVISORY: Final[str] = (
     "self-judge bias: Standard-mode score not comparable to Full-mode "
@@ -153,7 +153,6 @@ def generate_json_report(result: TestRunResult) -> str:
         "mandatory_minimums": build_mandatory_minimums_section(result),
         "test_results": build_test_results_section(result, frameworks),
         "gaps": build_gaps_section(result),
-        "recommendations": result.recommendations,
         "regulatory": build_regulatory_json_section(result, frameworks),
     }
 
@@ -173,7 +172,6 @@ def generate_markdown_report(result: TestRunResult) -> str:
         render_attestation_section(result),
         render_gap_analysis(result),
         render_regulatory_compliance(result, frameworks),
-        render_recommendations(result),
         render_evidence_appendix(result),
         render_footer(result),
     ]
@@ -212,7 +210,11 @@ def build_overall_section(result: TestRunResult) -> dict[str, object]:
         "strategic_score": round(result.strategic_score, 4),
         "strategic_score_pct": f"{result.strategic_score:.1%}",
         "passed": result.passed,
+        "verdict": _format_run_verdict(result).lower(),
         "mandatory_minimums_passed": result.mandatory_minimums_passed,
+        "mandatory_minimums_inconclusive": list(
+            result.mandatory_minimums_inconclusive
+        ),
     }
     if result.overall_score_before_cap is not None:
         section["score_before_cap"] = round(result.overall_score_before_cap, 4)
@@ -243,7 +245,13 @@ def build_mandatory_minimums_section(
 ) -> dict[str, object]:
     return {
         "all_passed": result.mandatory_minimums_passed,
-        "per_test": result.mandatory_minimum_status,
+        "any_inconclusive": bool(result.mandatory_minimums_inconclusive),
+        "per_test": {
+            test_id: status.value
+            for test_id, status in result.mandatory_minimum_status.items()
+        },
+        "violations": list(result.mandatory_minimum_violations),
+        "inconclusive": list(result.mandatory_minimums_inconclusive),
     }
 
 def build_test_results_section(
@@ -285,14 +293,16 @@ def build_test_results_section(
                 }
             evidence_list.append(ev_dict)
 
+        is_inconclusive = br.status == TestStatus.INCONCLUSIVE
         br_dict: dict[str, object] = {
             "test_id": br.test_id,
             "name": br.name,
             "category": br.category.value,
-            "score": round(br.score, 4),
-            "score_pct": f"{br.score:.1%}",
+            "score": None if is_inconclusive else round(br.score, 4),
+            "score_pct": "n/a" if is_inconclusive else f"{br.score:.1%}",
             "threshold": br.threshold,
             "passing": br.passing,
+            "status": br.status.value,
             "evidence_count": len(br.evidence),
             "evidence": evidence_list,
             "duration_ms": round(br.duration_ms, 1),
@@ -324,7 +334,7 @@ def build_gaps_section(result: TestRunResult) -> list[dict[str, object]]:
             "current_score": round(gap.current_score, 4),
             "required_score": gap.required_score,
             "capability_missing": gap.capability_missing,
-            "remediation": gap.remediation,
+            "priority": gap.priority,
         }
         for gap in result.gaps
     ]
@@ -347,10 +357,32 @@ def render_header(result: TestRunResult) -> str:
     )
     return header
 
+def _format_run_minimums_status(result: TestRunResult) -> str:
+    statuses = result.mandatory_minimum_status.values()
+    if any(s == TestStatus.FAIL for s in statuses):
+        return "FAIL"
+    if any(s == TestStatus.INCONCLUSIVE for s in statuses):
+        return "INCONCLUSIVE"
+    return "PASS"
+
+
+def _format_run_verdict(result: TestRunResult) -> str:
+    if result.passed:
+        return "PASS"
+    if result.mandatory_minimum_violations:
+        return "FAIL"
+    if (
+        result.overall_score is None
+        or result.mandatory_minimums_inconclusive
+    ):
+        return "INCONCLUSIVE"
+    return "FAIL"
+
+
 def render_summary(result: TestRunResult) -> str:
     grade_text = GRADE_INTERPRETATIONS[result.grade]
-    minimums_status = "PASS" if result.mandatory_minimums_passed else "FAIL"
-    verdict = "PASS" if result.passed else "FAIL"
+    minimums_status = _format_run_minimums_status(result)
+    verdict = _format_run_verdict(result)
     overall_display = (
         "n/a (insufficient evidence)" if result.overall_score is None
         else f"{result.overall_score:.1%}"
@@ -394,8 +426,8 @@ def render_mandatory_minimums(result: TestRunResult) -> str:
         "|---|---|",
     ]
 
-    for test_id, passed in sorted(result.mandatory_minimum_status.items()):
-        status = "PASS" if passed else "**FAIL**"
+    for test_id, status_value in sorted(result.mandatory_minimum_status.items()):
+        status = _STATUS_LABELS.get(status_value, _STATUS_LABELS[TestStatus.FAIL])
         lines.append(f"| {test_id} | {status} |")
 
     return "\n".join(lines)
@@ -410,6 +442,20 @@ def _is_exploratory_result(br: TestResult) -> bool:
 
 def _is_attestation_result(br: TestResult) -> bool:
     return bool(br.spec and getattr(br.spec, "is_attestation", False))
+
+
+_STATUS_LABELS: Final[dict[TestStatus, str]] = {
+    TestStatus.PASS: "PASS",
+    TestStatus.FAIL: "**FAIL**",
+    TestStatus.INCONCLUSIVE: "INCONCLUSIVE",
+    TestStatus.ERROR: "**ERROR**",
+}
+
+
+def _format_test_status(br: TestResult) -> str:
+    if br.error:
+        return _STATUS_LABELS[TestStatus.ERROR]
+    return _STATUS_LABELS.get(br.status, _STATUS_LABELS[TestStatus.FAIL])
 
 
 def _format_method_mix(br: TestResult) -> str:
@@ -438,11 +484,12 @@ def render_test_table(result: TestRunResult) -> str:
     ]
 
     for br in scored:
-        status = "PASS" if br.passing else "**FAIL**"
-        if br.error:
-            status = "**ERROR**"
-        score_display = f"{br.score:.1%}"
-        if br.confidence_interval:
+        status = _format_test_status(br)
+        score_display = (
+            "n/a" if br.status == TestStatus.INCONCLUSIVE
+            else f"{br.score:.1%}"
+        )
+        if br.confidence_interval and br.status != TestStatus.INCONCLUSIVE:
             score_display += f" [{br.confidence_interval.lower:.2f}, {br.confidence_interval.upper:.2f}]"
         method_mix = _format_method_mix(br)
         lines.append(
@@ -593,19 +640,8 @@ def render_gap_analysis(result: TestRunResult) -> str:
             f"- **Current Score:** {gap.current_score:.1%}\n"
             f"- **Required Score:** {gap.required_score:.0%}\n"
             f"- **Deficit:** {deficit:.1%}\n"
-            f"- **Remediation:** {gap.remediation}"
+            f"- **Priority:** {gap.priority}"
         )
-
-    return "\n".join(lines)
-
-def render_recommendations(result: TestRunResult) -> str:
-    if not result.recommendations:
-        return "## Recommendations\n\nNo recommendations — all tests passed."
-
-    lines = ["## Recommendations\n"]
-
-    for idx, recommendation in enumerate(result.recommendations, start=1):
-        lines.append(f"{idx}. {recommendation}")
 
     return "\n".join(lines)
 
@@ -649,8 +685,10 @@ def render_evidence_appendix(result: TestRunResult) -> str:
         if not br.evidence:
             continue
         has_evidence = True
-        status = "PASS" if br.passing else "FAIL"
-        lines.append(f"### {br.test_id} — {br.name} ({status})\n")
+        status_label = _STATUS_LABELS.get(
+            br.status, _STATUS_LABELS[TestStatus.FAIL]
+        ).replace("**", "")
+        lines.append(f"### {br.test_id} — {br.name} ({status_label})\n")
 
         for ev in br.evidence:
             prompt_display = ev.prompt_sent[:200] + "..." if len(ev.prompt_sent) > 200 else ev.prompt_sent

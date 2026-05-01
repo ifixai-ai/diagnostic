@@ -38,8 +38,6 @@ async def main() -> None:
         print("\nGovernance gaps to address:")
         for gap in result.gaps:
             print(f"  [{gap.priority.upper()}] {gap.test_name}: {gap.gap_description}")
-            if gap.remediation:
-                print(f"    Remediation: {gap.remediation}")
 
 if __name__ == "__main__":
     asyncio.run(main())

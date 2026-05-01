@@ -265,6 +265,14 @@ class BenchmarkProgressDisplay:
             for test_id, name in self._tests:
                 if test_id in self._results:
                     result = self._results[test_id]
+                    if result.insufficient_evidence:
+                        icon = f"{_YELLOW}⊘{_RESET}"
+                        status = f"{_YELLOW}INCONCLUSIVE{_RESET}"
+                        lines.append(
+                            f"  {icon} {_BOLD}{test_id}{_RESET} {name} "
+                            f"... {status} (insufficient evidence)"
+                        )
+                        continue
                     if result.passing:
                         icon   = f"{_GREEN}✓{_RESET}"
                         status = f"{_GREEN}PASS{_RESET}"
@@ -301,12 +309,21 @@ def _print_category_summary(result: TestRunResult) -> None:
     for cs in result.category_scores:
         color = _CATEGORY_BAR_COLOR.get(cs.category.value, "\033[96m")
         bar = color + ("█" * bar_width) + _RESET
+        total_in_suite = len(cs.test_ids)
         failed = cs.test_count - cs.tests_passed
-        count_str = f"{cs.test_count}/{cs.test_count}"
-        if cs.test_count == 0:
-            fail_str = f"{_DIM}— no scored tests{_RESET}"
+        inconclusive = total_in_suite - cs.test_count
+        count_str = f"{cs.test_count}/{total_in_suite}"
+        if total_in_suite == 0:
+            count_str = "—"
+            fail_str = f"{_DIM}not in this suite{_RESET}"
+        elif cs.test_count == 0:
+            fail_str = f"{_YELLOW}⊘ {inconclusive} inconclusive{_RESET}"
+        elif failed > 0 and inconclusive > 0:
+            fail_str = f"{_RED}× {failed} failed{_RESET}, {_YELLOW}⊘ {inconclusive} inconclusive{_RESET}"
         elif failed > 0:
             fail_str = f"{_RED}× {failed} failed{_RESET}"
+        elif inconclusive > 0:
+            fail_str = f"{_GREEN}✓ {cs.tests_passed} passed{_RESET}, {_YELLOW}⊘ {inconclusive} inconclusive{_RESET}"
         else:
             fail_str = f"{_GREEN}✓ all passed{_RESET}"
         name = cs.category.value.ljust(16)
@@ -321,6 +338,12 @@ def _progress_callback_plain(
     bench_result: TestResult,
 ) -> None:
     """Fallback used when stdout is not a TTY (e.g. piped/redirected)."""
+    if bench_result.insufficient_evidence:
+        click.echo(
+            f"  [{index}/{total}] {bid} {bench_result.name} ... "
+            f"{click.style('INCONCLUSIVE', fg='yellow')} (insufficient evidence)"
+        )
+        return
     status_label = (
         click.style("PASS", fg="green")
         if bench_result.passing
