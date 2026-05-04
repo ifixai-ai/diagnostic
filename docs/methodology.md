@@ -16,7 +16,7 @@ There is no `semantic` scoring path. Reference-corpus similarity was too noisy t
 
 ### What happens when the judge is unavailable
 
-Inspections whose `evaluation_method` is `JUDGE` (see the per-inspection table in [docs/tests.md](tests.md)) require a configured rubric judge to produce a verdict. When no judge is configured — for example, a Standard-mode run with only one provider credential and no `--eval-mode self` — each affected inspection emits a single evidence item with `evaluation_result="inconclusive"` and `passed=False`, rather than running silently. If that single item is below the inspection's `min_evidence_items` floor, `insufficient_evidence` is set and the inspection drops out of aggregation per `docs/scoring.md`. An inconclusive run is visible in both the JSON scorecard and the markdown render; it is never silently scored as failing.
+Inspections whose `evaluation_method` is `JUDGE` (see each inspection’s `runner.py` / `definition.yaml` under `ifixai/inspections/`) require a configured rubric judge to produce a verdict. When no judge is configured — for example, a Standard-mode run with only one provider credential and no `--eval-mode self` — each affected inspection emits a single evidence item with `evaluation_result="inconclusive"` and `passed=False`, rather than running silently. If that single item is below the inspection's `min_evidence_items` floor, `insufficient_evidence` is set and the inspection drops out of aggregation per `docs/scoring.md`. An inconclusive run is visible in both the JSON scorecard and the markdown render; it is never silently scored as failing.
 
 ### What the rubric judge sees
 
@@ -28,11 +28,11 @@ The analytic rubric YAMLs under `ifixai/inspections/b<NN>_<slug>/rubric.yaml` do
 
 **B02** (Non-LLM Governance Layer), **B04** (Deterministic Override), **B11** (System Controllability), **B23** (Policy Version Traceability), and **B26** (Rate Limiting) score structurally against the `ChatProvider` contract. A provider that does not expose the required hook emits `insufficient_evidence` and is excluded from the aggregate. No inspection produces a verdict from model-generated prose about its own governance.
 
-## Attestation inspections
+## Attestation inspections (facility)
 
-**B28** (Training Data Contamination Barrier) is tagged `is_attestation=True`. It is structurally not observable from a black-box interface: there is no request you can send that proves whether your inputs are used to train a future model. Rather than pretend to measure it, ifixai records the deployer's attestation from `fixture.deployer_attestations["B28"]` and renders it verbatim under a "Deployer Attestations (not scored)" section. No pass/fail verdict is produced.
+`InspectionSpec` supports `is_attestation=True` for inspections that record deployer-signed claims instead of measured behaviour. Those results are rendered under **Deployer Attestations (not scored)** in the scorecard and are excluded from category aggregation (`ifixai/scoring/engine.py`).
 
-Attestation inspections are excluded from aggregation, marked `weight=0.0`, and carry an `ATTESTATION_INSPECTION_PREFIX` warning in the scorecard. An empty attestation is recorded as `not attested`, which is the honest answer for a deployer who has not signed off on the claim.
+**Current registry:** no inspection sets `is_attestation=True`. **`B28`** is **RAG Context Integrity** — a behavioural inspection (judge path) scored under **MANIPULATION**, not an attestation placeholder. The five-bucket assignment for every `B01`–`B32` is tabulated in [`inspection_categories.md`](inspection_categories.md).
 
 ## Exploratory inspections
 
@@ -56,6 +56,8 @@ The B14/B30 mutator (`ifixai/harness/adversarial_mutator.py`) applies four opera
 
 The mutator produces **surface variance** (case, punctuation, filler words, small-set synonym swaps), not novel attack semantics. A model that has memorised a seed corpus will pass mutated variants by construction. The corpora are committed to this public repo, so any model trained after the repo's first publication may have the literal seed strings (or close paraphrases) in training data. A passing B12, B14, or B30 score on these corpora measures resistance to a fixed, public seed set — not resistance to novel adversarial inputs from a motivated attacker. This is also why **B12 is not a mandatory minimum** ([`docs/scoring.md`](scoring.md) § Why B12 is not a mandatory minimum). Authors who need a deployment gate for these properties should fork and supply a private corpus.
 
+Sharing the B14/B30 mutator does **not** imply the same scoring pillar: **B14** rolls up under **DECEPTION**; **B30** under **MANIPULATION** ([`inspection_categories.md`](inspection_categories.md)).
+
 Domain context belongs in the fixture YAML, not in inspection or corpus code: corpus seeds cannot name specific industries.
 
 ## Cross-provider judge default
@@ -64,7 +66,7 @@ In **Standard mode**, ifixai auto-pairs a judge from a different provider than t
 
 **Full mode** uses a multi-judge ensemble with simple-majority aggregation and conservative tie-break (`fail > partial > pass`). Per-judge verdicts are recorded in the manifest for post-hoc audit.
 
-See [docs/scoring.md](scoring.md) for the exact formulas (category weights, mandatory-minimum cap, empty-category nulls).
+See [docs/scoring.md](scoring.md) for the exact formulas (category weights, mandatory-minimum cap, empty-category nulls). See [docs/inspection_categories.md](inspection_categories.md) for the inspection → pillar map used in those rollups.
 
 ## Comparison to existing tests
 
@@ -80,6 +82,7 @@ A reader who needs capability tests should use HELM or lm-eval. A reader who nee
 ## What this page does NOT cover
 
 - The exact scoring math (category weights, mandatory minimums, grade thresholds): [docs/scoring.md](scoring.md).
+- Which inspection IDs roll up into which of the five categories: [docs/inspection_categories.md](inspection_categories.md).
 - Reproducibility details (manifest digest algorithm, fixture canonicalisation, replay API): [docs/reproducibility.md](reproducibility.md).
 - How to author a fixture: fixture README and schema under `ifixai/fixtures/`.
 - Per-inspection rubric definitions: `ifixai/inspections/b*_*/rubric.yaml`.

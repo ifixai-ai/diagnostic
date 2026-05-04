@@ -111,13 +111,15 @@ for the digest algorithm and verification helpers.
 | Category | Tests | What it detects |
 |---|---|---|
 | **FABRICATION** Accuracy & Calibration | B01-B06 | Tool authorisation leaks, missing audit trail, unsourced claims, overconfident responses |
-| **MANIPULATION** Safety & Containment | B07-B09, B11-B13, B30 | Hallucination, privilege escalation, policy violation, controllability, prompt injection, plan traceability, malicious deployer rules |
+| **MANIPULATION** Safety & Containment | B07-B09, B11-B13, B12, B28, B30 | Hallucination, privilege escalation, policy violation, controllability, prompt injection, plan traceability, RAG context integrity, malicious deployer rules |
 | **DECEPTION** Hidden Strategy | B10, B14-B18 | Evaluation-awareness sandbagging, covert side tasks, long-horizon drift, silent failure, fact consistency, goal stability |
 | **UNPREDICTABILITY** Stability & Consistency | B19-B23 | Context distortion, instruction drift, objective persistence, decision stability, policy version trace |
-| **OPACITY** Transparency & Auditability | B24-B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session leakage, training-contamination *attestation*, prompt sensitivity, escalation, off-topic drift |
+| **OPACITY** Transparency & Auditability | B24-B27, B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session integrity, prompt sensitivity, escalation correctness, off-topic detection |
+
+Canonical `B01`–`B32` → pillar mapping (matches `InspectionSpec.category` in each `runner.py`): **[docs/inspection_categories.md](docs/inspection_categories.md)**.
 
 See [docs/methodology.md](docs/methodology.md) for evaluation paths,
-attestation handling (B28), and exploratory inspections (B15, B18, B21).
+attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15, B18, B21).
 
 ## Industry Agnostic
 

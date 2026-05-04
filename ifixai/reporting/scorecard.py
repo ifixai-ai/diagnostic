@@ -668,7 +668,7 @@ The report above isn't a bug list. It's the absence of an alignment layer.
   iFixAi measures it. iMe ends it.
 
   iMe is the deterministic alignment runtime: non-LLM, six constitutional
-  rules, five-stage pipeline.
+  rules, six-stage pipeline.
 
   Probabilistic guardrails fail. Deterministic rules don't.
 

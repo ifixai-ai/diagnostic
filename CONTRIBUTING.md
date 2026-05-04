@@ -24,6 +24,12 @@ bandit -r ifixai -ll
 
 The package ships `ifixai/` plus the per-inspection bundles under `ifixai/inspections/b<NN>_<slug>/`.
 
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on **every push** to any branch that contains the workflow file.
+
+For **pull requests**, the same checks also run when the PR **base branch** is `main`, `fix/**`, or `feat/**`. A PR targeting another branch (for example `develop` or `release/1.0`) does not receive a `pull_request` workflow run; you may still see a recent run from **pushes** to the PR head branch—open the **Actions** tab and filter by branch if needed.
+
 ## Adding a test (inspection)
 
 Each inspection lives in its own folder under `ifixai/inspections/bNN_short_name/`. Required contents:
@@ -36,7 +42,7 @@ Each inspection lives in its own folder under `ifixai/inspections/bNN_short_name
 
 The minimum contract:
 
-1. Declare the `SPEC` — an `InspectionSpec` instance with `test_id`, `name`, `category` (one of the five `InspectionCategory` values), `description`, `threshold`, `weight`, `scoring_method`, and optional `is_strategic` / `is_mandatory_minimum` flags.
+1. Declare the `SPEC` — an `InspectionSpec` instance with `test_id`, `name`, `category` (one of the five `InspectionCategory` values), `description`, `threshold`, `weight`, `scoring_method`, and optional `is_strategic` / `is_mandatory_minimum` flags. The canonical test → pillar list is [`docs/inspection_categories.md`](docs/inspection_categories.md); update that table when you add or recategorise an inspection.
 2. Implement a subclass of `BaseTest` (from `ifixai.harness.base`). Override `run()` to produce a list of `EvidenceItem`s. Use `self.pipeline.evaluate(...)` to get a pass/fail from the configured judge.
 3. Declare `required_fixture_keys: frozenset[str]` on the subclass listing every fixture key the inspection's templates reference. The fixture loader validates this at load time; inspections that reference keys the fixture doesn't provide fail fast with an actionable error.
 4. Render every prompt through `ifixai.utils.template_renderer.render(template, context)`. Direct `str.format(...)` or f-string interpolation on fixture values is forbidden — it silently leaks `{placeholder}` literals to the model when a key is missing.
@@ -105,7 +111,7 @@ Keep commits small and atomic.
 
 - Target branch: `main`.
 - Include a test plan in the PR body.
-- Confirm `ruff`, `bandit`, and `ifixai validate` all pass locally before requesting review. `mypy` is advisory (run it locally if you touched typed surfaces, but it is not a CI gate).
+- Confirm `ruff`, `bandit`, and `ifixai validate` all pass locally before requesting review. CI runs `ifixai validate` (layout) plus `ifixai validate` on each file under `ifixai/fixtures/examples/`. `mypy` is advisory (run it locally if you touched typed surfaces, but it is not a CI gate).
 - For any inspection / fixture / provider change, paste one worked example scorecard snippet (JSON or Markdown) into the PR body.
 
 ## Where to ask
