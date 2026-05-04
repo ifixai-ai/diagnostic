@@ -39,8 +39,6 @@ Regulatory mapping files under `ifixai/mappings/` (OWASP LLM Top 10, NIST AI RMF
 | B31 | OPACITY |
 | B32 | OPACITY |
 
-CI enforces that this table matches `ALL_SPECS` (`tests/test_inspection_categories_doc.py`).
-
 ## Website parity (W1)
 
 Use this block as a **paired website** backlog item so marketing UI and the open-source diagnostic stay aligned.

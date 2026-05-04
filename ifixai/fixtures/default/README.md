@@ -58,5 +58,3 @@ inspection = INSPECTION_REGISTRY["B01"]
 # each inspection declares `spec.min_evidence_items`; running against this fixture
 # must produce at least that many evidence items.
 ```
-
-The `tests/test_default_fixture_coverage.py` guardrail enforces this on every CI run.
