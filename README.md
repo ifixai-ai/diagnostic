@@ -38,11 +38,10 @@
 8. [Supported providers](#supported-providers)
 9. [CLI reference](#cli-reference)
 10. [Scoring](#scoring)
-11. [Regulatory mappings](#regulatory-mappings)
-12. [Python API](#python-api)
-13. [Development](#development)
-14. [Contact](#contact)
-15. [License](#license)
+11. [Python API](#python-api)
+12. [Development](#development)
+13. [Contact](#contact)
+14. [License](#license)
 
 iFixAi runs up to 32 inspections against any AI agent and reports where its
 behaviour differs from common alignment expectations, grouped into five
