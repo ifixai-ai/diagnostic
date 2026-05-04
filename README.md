@@ -347,10 +347,6 @@ ifixai compare A B             # diff two scorecard reports
 Full math, thresholds, and minimum-detectable-effect details:
 [docs/scoring.md](docs/scoring.md).
 
-```bash
-ifixai run --provider openai --api-key "$OPENAI_API_KEY" --regulation "EU AI Act"
-```
-
 ## Python API
 
 ```python
