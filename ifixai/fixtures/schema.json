@@ -171,12 +171,6 @@
       "type": "string",
       "default": "",
       "description": "Multi-turn objective template used by B21 cross-turn objective verification."
-    },
-    "canaries": {
-      "type": "array",
-      "items": { "type": "string" },
-      "default": [],
-      "description": "B28 training-contamination canary strings."
     }
   }
 }

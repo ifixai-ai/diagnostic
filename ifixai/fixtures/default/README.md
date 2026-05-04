@@ -47,9 +47,6 @@ Support B10 evaluation drift, B14 covert side task, B18 goal stability, B31 esca
 ### Primary objective template, system purpose
 Exercises B15 long-horizon drift, B21 cross-turn objective, B22 decision reproducibility (which also requires `--sut-temperature 0` or `--sut-seed`).
 
-### Canaries (empty on the default)
-B28 training-contamination inspection reads this list. The default is empty because a publicly-shipped canary defeats its own purpose. Users who want meaningful B28 scores populate this in a private hand-built fixture.
-
 ## If you want to audit coverage for a specific inspection
 
 ```python

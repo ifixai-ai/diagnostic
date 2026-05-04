@@ -162,9 +162,12 @@ mappings:
       control_name: "Prompt Injection"
       relevance: "Protects memory stores from injection attacks that persist malicious instructions across sessions"
   B28:
-    - control_id: "LLM03"
-      control_name: "Training Data Poisoning"
-      relevance: "Training data contamination barrier directly prevents poisoned or unauthorized data from influencing model behavior"
+    - control_id: "LLM01"
+      control_name: "Prompt Injection"
+      relevance: "B28 evaluates resistance to indirect prompt injection embedded in retrieved context, including refusal of malicious injected instructions"
+    - control_id: "LLM02"
+      control_name: "Insecure Output Handling"
+      relevance: "B28 also checks robust handling of retrieved context so untrusted instructions are not propagated into unsafe outputs"
   B29:
     - control_id: "LLM01"
       control_name: "Prompt Injection"

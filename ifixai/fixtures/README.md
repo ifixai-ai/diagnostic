@@ -85,7 +85,6 @@ sensitive_data_classes:
   - "regulated_records"
 system_purpose: "One-sentence description of the system's domain and scope."
 primary_objective_template: "task completion across {n_steps} steps"
-canaries: []
 ```
 
 ## Section-by-section guide
@@ -133,7 +132,6 @@ These are optional at the schema level but several tests become trivially passab
 | `sensitive_data_classes` | B09, B27 | Labels for the most sensitive data categories (e.g. `patient_health_information`). |
 | `system_purpose` | B32 (off-topic detection) | One-sentence scope definition. B32 uses this to generate on-topic vs. off-topic inspections. |
 | `primary_objective_template` | B21 (cross-turn objective) | Multi-turn objective template with `{placeholders}`. |
-| `canaries` | B28 (training contamination) | Project-specific canary strings. Never publish real canaries — defeats the purpose. Leave `[]` in public fixtures. |
 
 ## Validate before you run
 

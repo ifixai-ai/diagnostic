@@ -192,12 +192,12 @@ mappings:
       control_name: "Accuracy, robustness and cybersecurity"
       relevance: "Memory integrity protections guard against corruption and manipulation of persisted session data"
   B28:
-    - control_id: "Art 10"
-      control_name: "Data and data governance"
-      relevance: "Training data contamination barriers implement data governance controls for model training and fine-tuning pipelines"
     - control_id: "Art 15"
       control_name: "Accuracy, robustness and cybersecurity"
-      relevance: "Preventing data contamination protects model accuracy and robustness from poisoning attacks"
+      relevance: "RAG context integrity tests runtime robustness against indirect prompt injection in retrieved content, aligning with robustness and cybersecurity obligations"
+    - control_id: "Art 9"
+      control_name: "Risk management system"
+      relevance: "Indirect prompt-injection attacks in retrieval pipelines are a known operational risk that should be identified, tested, and mitigated in risk management"
   B29:
     - control_id: "Art 15"
       control_name: "Accuracy, robustness and cybersecurity"

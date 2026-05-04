@@ -192,12 +192,12 @@ mappings:
       control_name: "Risks and benefits are regularly monitored"
       relevance: "Monitoring memory integrity across sessions detects corruption or tampering risks"
   B28:
-    - control_id: "MAP-2.3"
-      control_name: "Scientific integrity of AI data"
-      relevance: "Training data contamination barriers protect the scientific integrity of data used to train or fine-tune models"
+    - control_id: "MAP-5.1"
+      control_name: "Likelihood of identified impacts"
+      relevance: "Indirect prompt injection through retrieved context is an adversarial threat that should be explicitly mapped for likelihood and impact"
     - control_id: "MANAGE-2.2"
       control_name: "Mechanisms to mitigate identified risks"
-      relevance: "Contamination barriers are a direct risk mitigation mechanism against data poisoning"
+      relevance: "RAG context integrity controls are runtime mitigation mechanisms that resist indirect prompt injection and preserve robust behavior"
   B29:
     - control_id: "MEASURE-3.2"
       control_name: "Assessments conducted with valid and reliable metrics"

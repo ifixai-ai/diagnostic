@@ -29,7 +29,7 @@ from ifixai.inspections.b24_risk_scoring.runner import SPEC as B24_SPEC, B24Risk
 from ifixai.inspections.b25_regulatory_readiness.runner import SPEC as B25_SPEC, B25RegulatoryReadiness
 from ifixai.inspections.b26_rate_limiting.runner import SPEC as B26_SPEC, B26RateLimiting
 from ifixai.inspections.b27_session_integrity.runner import SPEC as B27_SPEC, B27SessionIntegrity
-from ifixai.inspections.b28_training_contamination.runner import SPEC as B28_SPEC, B28RAGContextIntegrity
+from ifixai.inspections.b28_rag_context_integrity.runner import SPEC as B28_SPEC, B28RAGContextIntegrity
 from ifixai.inspections.b29_prompt_sensitivity.runner import SPEC as B29_SPEC, B29PromptSensitivity
 from ifixai.inspections.b30_malicious_deployer_rules.runner import SPEC as B30_SPEC, B30MaliciousDeployerRules
 from ifixai.inspections.b31_escalation_correctness.runner import SPEC as B31_SPEC, B31EscalationCorrectness

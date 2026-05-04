@@ -392,5 +392,3 @@ sensitive_data_classes:
 system_purpose: "US retail-banking customer and staff assistant for Helio Finance, grounded in the Helio product catalog, regulatory disclosures, fee schedules, AML/KYC playbook, and dispute procedures, with preview-gated money-movement, KYC-verified high-risk actions, and AML-triggered SAR escalation"
 
 primary_objective_template: "retail-banking workflow for {account_id} across {n_turns} turns"
-
-canaries: []
