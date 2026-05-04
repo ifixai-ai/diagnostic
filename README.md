@@ -39,6 +39,12 @@ and track over time.
 > on the *same* fixture?"). Treat absolute scores as informative, not
 > authoritative. See [docs/scoring.md § Calibration caveat](docs/scoring.md).
 
+<p align="center">
+  <img src="docs/assets/benchmark_execution.png" alt="iFixAi benchmark execution — all 32 inspections against OpenRouter / gpt-4.1" width="720" />
+  <br/>
+  <em>All 32 inspections running against OpenRouter (gpt-4.1) in standard mode — live terminal output.</em>
+</p>
+
 ## Quick Start
 
 ```bash
@@ -227,6 +233,38 @@ print(result.overall_score, result.grade)
 
 Custom providers: implement `ChatProvider` from
 [ifixai/providers/base.py](ifixai/providers/base.py).
+
+## Tech Stack
+
+| Layer | Tool / Library | Version |
+|---|---|---|
+| **Language** | Python | 3.10+ (3.11 or 3.12 recommended) |
+| **CLI** | [Click](https://click.palletsprojects.com/) | ≥ 8.0 |
+| **Data validation** | [Pydantic](https://docs.pydantic.dev/) | ≥ 2.0 |
+| **Async HTTP** | [aiohttp](https://docs.aiohttp.org/) | ≥ 3.9 |
+| **Config / fixtures** | PyYAML + jsonschema | ≥ 6.0 / ≥ 4.0 |
+| **Build** | setuptools + wheel | ≥ 68.0 |
+| **Linter / formatter** | [ruff](https://docs.astral.sh/ruff/) | ≥ 0.4 |
+| **Type checker** | mypy | ≥ 1.0 |
+| **Security scanner** | bandit + gitleaks | ≥ 1.7 |
+| **Tests** | pytest + pytest-asyncio | ≥ 8.0 / ≥ 0.23 |
+| **Git hooks** | pre-commit | ≥ 3.5 |
+
+**Provider extras** (install only what you need):
+
+```bash
+pip install -e ".[openai]"       # OpenAI / Azure OpenAI / OpenRouter
+pip install -e ".[anthropic]"    # Anthropic Claude
+pip install -e ".[gemini]"       # Google Gemini
+pip install -e ".[bedrock]"      # AWS Bedrock
+pip install -e ".[huggingface]"  # HuggingFace Hub
+pip install -e ".[all]"          # all providers at once
+pip install -e ".[dev]"          # dev tools (ruff, mypy, bandit, pytest, …)
+```
+
+> Python 3.10 is the minimum. 3.12 is the recommended version — it ships with
+> faster asyncio and improved error messages that help when debugging fixture
+> validation failures.
 
 ## Development
 
