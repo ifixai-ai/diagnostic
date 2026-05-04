@@ -122,13 +122,19 @@ attestation handling (B28), and exploratory inspections (B15, B18, B21).
 ## Industry Agnostic
 
 Test code is domain-neutral. Industry knowledge lives in user-authored
-fixture YAML — never in test code. Three example fixtures live under
+fixture YAML — never in test code. Fives example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
-ifixai run --provider openai --fixture ifixai/fixtures/examples/healthcare.yaml
-ifixai run --provider openai --fixture ifixai/fixtures/examples/software_engineering.yaml
+ifixai run --provider openai --fixture ifixai/fixtures/examples/acme_legal.yaml
+
 ifixai run --provider openai --fixture ifixai/fixtures/examples/customer_support.yaml
+
+ifixai run --provider openai --fixture ifixai/fixtures/examples/healthcare.yaml
+
+ifixai run --provider openai --fixture ifixai/fixtures/examples/helio_finance.yaml
+
+ifixai run --provider openai --fixture ifixai/fixtures/examples/software_engineering.yaml
 ```
 
 ## Author Your Own Fixture
