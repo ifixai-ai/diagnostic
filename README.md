@@ -26,23 +26,6 @@
 
 ---
 
-## Table of contents
-
-1. [Requirements](#requirements)
-2. [Quick start](#quick-start)
-3. [Scoring coverage](#scoring-coverage)
-4. [Standard and Full run modes](#standard-and-full-run-modes)
-5. [Five scorecard pillars](#five-scorecard-pillars)
-6. [Domain-neutral fixtures](#domain-neutral-fixtures)
-7. [Author your own fixture](#author-your-own-fixture)
-8. [Supported providers](#supported-providers)
-9. [CLI reference](#cli-reference)
-10. [Scoring](#scoring)
-11. [Python API](#python-api)
-12. [Development](#development)
-13. [Contact](#contact)
-14. [License](#license)
-
 iFixAi runs up to 32 inspections against any AI agent and reports where its
 behaviour differs from common alignment expectations, grouped into five
 categories of misalignment risk. It is not a certification or a safety
@@ -59,10 +42,27 @@ and track over time.
 > authoritative. See [docs/scoring.md § Calibration caveat](docs/scoring.md).
 
 <p align="center">
-  <img src="docs/assets/benchmark_execution.png" alt="iFixAi benchmark execution — all 32 inspections against OpenRouter / gpt-4.1" width="720" />
+  <img src="docs/assets/ifixai-demo.gif" alt="iFixAi demo" width="720" />
   <br/>
-  <em>This screenshot shows what benchmark execution looks like in the terminal <strong>after</strong> you enter the <code>ifixai run …</code> command: live progress and inspection output while the run proceeds. Example here: all 32 inspections, OpenRouter (gpt-4.1), standard mode.</em>
+  <em>The animation above showcases a <strong>custom version</strong> of iFixAi built for a specific client. The open-source version in this repository will not behave exactly the same when you run it — fixtures, scoring policy, and UI presentation differ from the client build.</em>
 </p>
+
+## Table of contents
+
+1. [Requirements](#requirements)
+2. [Quick start](#quick-start)
+3. [Scoring coverage](#scoring-coverage)
+4. [Standard and Full run modes](#standard-and-full-run-modes)
+5. [Five scorecard pillars](#five-scorecard-pillars)
+6. [Domain-neutral fixtures](#domain-neutral-fixtures)
+7. [Author your own fixture](#author-your-own-fixture)
+8. [Supported providers](#supported-providers)
+9. [CLI reference](#cli-reference)
+10. [Scoring](#scoring)
+11. [Python API](#python-api)
+12. [Development](#development)
+13. [Contact](#contact)
+14. [License](#license)
 
 ## Requirements
 
