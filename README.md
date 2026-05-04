@@ -7,6 +7,8 @@
 <p align="center"><strong>Open-source diagnostic about AI Misalignment</strong></p>
 
 <p align="center">
+  <a href="#table-of-contents">Contents</a> •
+  <a href="#requirements">Requirements</a> •
   <a href="#quick-start">Quick start</a> •
   <a href="docs/methodology.md">Methodology</a> •
   <a href="#scoring">Scoring</a> •
@@ -23,6 +25,24 @@
 </p>
 
 ---
+
+## Table of contents
+
+1. [Requirements](#requirements)
+2. [Quick start](#quick-start)
+3. [Scoring coverage](#scoring-coverage)
+4. [Standard and Full run modes](#standard-and-full-run-modes)
+5. [Five scorecard pillars](#five-scorecard-pillars)
+6. [Domain-neutral fixtures](#domain-neutral-fixtures)
+7. [Author your own fixture](#author-your-own-fixture)
+8. [Supported providers](#supported-providers)
+9. [CLI reference](#cli-reference)
+10. [Scoring](#scoring)
+11. [Regulatory mappings](#regulatory-mappings)
+12. [Python API](#python-api)
+13. [Development](#development)
+14. [Contact](#contact)
+15. [License](#license)
 
 iFixAi runs up to 32 inspections against any AI agent and reports where its
 behaviour differs from common alignment expectations, grouped into five
@@ -42,28 +62,161 @@ and track over time.
 <p align="center">
   <img src="docs/assets/benchmark_execution.png" alt="iFixAi benchmark execution — all 32 inspections against OpenRouter / gpt-4.1" width="720" />
   <br/>
-  <em>All 32 inspections running against OpenRouter (gpt-4.1) in standard mode — live terminal output.</em>
+  <em>This screenshot shows what benchmark execution looks like in the terminal <strong>after</strong> you enter the <code>ifixai run …</code> command: live progress and inspection output while the run proceeds. Example here: all 32 inspections, OpenRouter (gpt-4.1), standard mode.</em>
 </p>
 
+## Requirements
+
+- **Python** 3.10+ (3.11 or 3.12 recommended — faster asyncio and clearer fixture errors).
+- **Install** the package plus the **optional extra** for the provider you will call (extras only pull SDKs; core CLI deps are always installed):
+
+| Extra | Installs | Use for `--provider` |
+|---|---|---|
+| *(none)* | Core only | `mock`, `http`, `langchain` (you must `pip install langchain` yourself) |
+| `openai` | `openai` SDK | `openai` |
+| `azure` | `openai` SDK | `azure` (same client; set `--endpoint` to your Azure OpenAI resource) |
+| `openrouter` | `openai` SDK | `openrouter` |
+| `anthropic` | `anthropic` SDK | `anthropic` |
+| `gemini` | `google-generativeai` | `gemini` |
+| `bedrock` | `boto3` | `bedrock` |
+| `huggingface` | `huggingface-hub` | `huggingface` |
+| `dev` | Lint, types, tests, security | [Contributing](CONTRIBUTING.md) only |
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[openai]"          # example: pick one extra from the table
+```
+
+**Contributors:** install `pip install -e ".[dev]"` and follow [CONTRIBUTING.md](CONTRIBUTING.md) for ruff, bandit, pytest, and hooks.
+
+**Standard-mode judging:** With default settings, the CLI expects **a second, different provider credential in the environment** so the SUT is not scored by itself. Export two keys (for example `OPENAI_API_KEY` + `ANTHROPIC_API_KEY`), or pass **`--eval-mode self`** when you intentionally accept a self-judge (fine for mock/CI drift; not for vendor comparisons). See [Standard and Full run modes](#standard-and-full-run-modes).
+
+The CLI does **not** auto-read the SUT API key from the environment: pass **`--api-key`** / **`-k`**, or enter it when prompted.
+
 ## Quick Start
+
+Omitting `--fixture` uses the built-in **default** fixture. Runs emit a scorecard under `./ifixai-results/` (override with `--output`). Typical wall time is a few minutes on broadband.
+
+### 0 — Mock (no cloud keys)
+
+```bash
+pip install -e "."
+ifixai run --provider mock --api-key not-used --eval-mode self
+```
+
+`mock` ignores the key string; `--eval-mode self` is required when no second provider credential is present.
+
+### 1 — OpenAI
 
 ```bash
 pip install -e ".[openai]"
 export OPENAI_API_KEY=sk-...
-ifixai run --provider openai
+export ANTHROPIC_API_KEY=sk-ant-api03-...   # second provider for cross-judge (example)
+ifixai run --provider openai --api-key "$OPENAI_API_KEY"
 ```
 
-The CLI auto-selects the built-in fixture, runs all available tests, and
-produces a scorecard in under five minutes on a typical broadband connection.
+Single key only (self-judge):
 
-**No API key?** Run against the built-in mock provider:
+```bash
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --eval-mode self
+```
+
+### 2 — OpenRouter
+
+```bash
+pip install -e ".[openrouter]"    # same SDK stack as OpenAI
+export OPENROUTER_API_KEY=sk-or-...
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+ifixai run --provider openrouter --api-key "$OPENROUTER_API_KEY" --model openai/gpt-4o
+```
+
+### 3 — Anthropic
+
+```bash
+pip install -e ".[anthropic]"
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+export OPENAI_API_KEY=sk-...
+ifixai run --provider anthropic --api-key "$ANTHROPIC_API_KEY" --model claude-sonnet-4-20250514
+```
+
+### 4 — Google Gemini
+
+```bash
+pip install -e ".[gemini]"
+export GEMINI_API_KEY=...    # or GOOGLE_API_KEY
+export OPENAI_API_KEY=sk-...
+ifixai run --provider gemini --api-key "$GEMINI_API_KEY"
+```
+
+### 5 — Azure OpenAI
+
+```bash
+pip install -e ".[azure]"          # or .[openai] — same OpenAI-compatible SDK
+export AZURE_OPENAI_API_KEY=...
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+ifixai run --provider azure \
+  --endpoint https://YOUR_RESOURCE.openai.azure.com/ \
+  --api-key "$AZURE_OPENAI_API_KEY" \
+  --model YOUR_DEPLOYMENT_NAME
+```
+
+### 6 — AWS Bedrock
+
+```bash
+pip install -e ".[bedrock]"
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export OPENAI_API_KEY=sk-...
+ifixai run --provider bedrock --api-key not-used \
+  --model anthropic.claude-3-5-sonnet-20240620-v1:0
+```
+
+Authentication uses the **standard AWS credential chain** (env vars or instance profile). The CLI still requires `--api-key`; use any placeholder string — it is not sent to Bedrock.
+
+### 7 — Hugging Face Inference
+
+```bash
+pip install -e ".[huggingface]"
+export HF_TOKEN=hf_...
+export OPENAI_API_KEY=sk-...
+ifixai run --provider huggingface --api-key "$HF_TOKEN" --model meta-llama/Llama-3.1-8B-Instruct
+```
+
+(`HUGGINGFACE_API_TOKEN` is also accepted.)
+
+### 8 — HTTP (OpenAI-compatible server)
 
 ```bash
 pip install -e "."
-ifixai run --provider mock
+export OPENAI_API_KEY=sk-...
+ifixai run --provider http \
+  --endpoint http://localhost:8000/v1 \
+  --api-key YOUR_SERVER_TOKEN \
+  --model your-model-id
 ```
 
-## How Many Inspections Score?
+Optional JSON headers: set **`IFIXAI_EXTRA_HEADERS`** to a JSON object (see `ifixai/providers/http.py`).
+
+### 9 — LangChain
+
+```bash
+pip install -e "."
+pip install langchain          # not bundled as a named extra
+export OPENAI_API_KEY=sk-...
+ifixai run --provider langchain --api-key "$OPENAI_API_KEY"
+```
+
+Wire your chain inside the LangChain adapter as documented in the provider module.
+
+### 10 — Everything at once
+
+```bash
+pip install -e ".[all]"
+# export whichever keys you need, then:
+ifixai run --provider openai --api-key "$OPENAI_API_KEY"
+```
+
+## Scoring coverage
 
 Not all 32 inspections score against every provider shape. Five depend on
 hooks only a policy-wrapped provider exposes; vanilla LLMs return
@@ -79,7 +232,7 @@ hooks only a policy-wrapped provider exposes; vanilla LLMs return
 The scorecard is always explicit about exclusions: a `warnings[]` entry
 names each `insufficient_evidence` inspection.
 
-## Two Run Modes
+## Standard and Full run modes
 
 | Mode | Setup | Judge | Use case |
 |---|---|---|---|
@@ -92,12 +245,13 @@ are acceptable for CI drift but not for comparing systems — use Full mode
 when the result needs to survive review.
 
 ```bash
-# Standard, one command
-ifixai run --provider openai
+# Standard, one command (two env credentials for cross-judge, or add --eval-mode self)
+ifixai run --provider openai --api-key "$OPENAI_API_KEY"
 
 # Full, cross-provider judge, custom fixture
 ifixai run --mode full \
   --provider openai \
+  --api-key "$OPENAI_API_KEY" \
   --fixture ./my-fixture.yaml \
   --judge-provider anthropic --judge-api-key $ANTHROPIC_KEY
 ```
@@ -106,7 +260,7 @@ Every run writes a content-addressed manifest to `runs/<run_id>/manifest.json`
 that captures every input. See [docs/reproducibility.md](docs/reproducibility.md)
 for the digest algorithm and verification helpers.
 
-## The Five Categories
+## Five scorecard pillars
 
 | Category | Tests | What it detects |
 |---|---|---|
@@ -121,22 +275,24 @@ Canonical `B01`–`B32` → pillar mapping (matches `InspectionSpec.category` in
 See [docs/methodology.md](docs/methodology.md) for evaluation paths,
 attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15, B18, B21).
 
-## Industry Agnostic
+## Domain-neutral fixtures
 
 Test code is domain-neutral. Industry knowledge lives in user-authored
 fixture YAML — never in test code. Fives example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
-ifixai run --provider openai --fixture ifixai/fixtures/examples/acme_legal.yaml
+# Add --api-key "$OPENAI_API_KEY" (or your SUT provider). Use a second provider env for
+# judging, or append --eval-mode self when you only have one credential.
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/acme_legal.yaml
 
-ifixai run --provider openai --fixture ifixai/fixtures/examples/customer_support.yaml
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/customer_support.yaml
 
-ifixai run --provider openai --fixture ifixai/fixtures/examples/healthcare.yaml
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/healthcare.yaml
 
-ifixai run --provider openai --fixture ifixai/fixtures/examples/helio_finance.yaml
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/helio_finance.yaml
 
-ifixai run --provider openai --fixture ifixai/fixtures/examples/software_engineering.yaml
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/software_engineering.yaml
 ```
 
 ## Author Your Own Fixture
@@ -154,8 +310,8 @@ cp ifixai/fixtures/smoke_tiny.yaml my-fixture.yaml
 ifixai validate my-fixture.yaml
 
 # Smoke-test against the mock provider, then your real agent
-ifixai run --provider mock --fixture my-fixture.yaml
-ifixai run --provider openai --fixture my-fixture.yaml
+ifixai run --provider mock --api-key not-used --eval-mode self --fixture my-fixture.yaml
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture my-fixture.yaml
 ```
 
 Schema source of truth: [ifixai/fixtures/schema.json](ifixai/fixtures/schema.json).
@@ -163,14 +319,12 @@ Full authoring walkthrough: [ifixai/fixtures/README.md](ifixai/fixtures/README.m
 
 ## Supported Providers
 
-OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, HuggingFace,
-HTTP/REST, LangChain.
+`mock`, `openai`, `openrouter`, `anthropic`, `gemini`, `azure`, `bedrock`, `huggingface`, `http`, `langchain`. Step-by-step install and env vars: [Quick start](#quick-start).
 
 ```bash
-ifixai run --provider anthropic --api-key $ANTHROPIC_API_KEY
-ifixai run --provider http --endpoint https://your-api.com/v1/chat --api-key $KEY
-ifixai run --provider openai --strategic               # top 8 only
-ifixai run --provider openai --test B01                # single test
+ifixai run --provider anthropic --api-key "$ANTHROPIC_API_KEY" --strategic    # top 8 only
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --test B01           # single test
+ifixai run --provider http --endpoint https://your-api.com/v1 --api-key "$KEY"
 ```
 
 ## CLI Reference
@@ -208,7 +362,7 @@ Gap analysis maps every test to OWASP LLM Top 10, NIST AI RMF, EU AI Act,
 and ISO 42001 controls.
 
 ```bash
-ifixai run --provider openai --regulation "EU AI Act"
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --regulation "EU AI Act"
 ```
 
 ## Python API
@@ -241,38 +395,6 @@ print(result.overall_score, result.grade)
 
 Custom providers: implement `ChatProvider` from
 [ifixai/providers/base.py](ifixai/providers/base.py).
-
-## Tech Stack
-
-| Layer | Tool / Library | Version |
-|---|---|---|
-| **Language** | Python | 3.10+ (3.11 or 3.12 recommended) |
-| **CLI** | [Click](https://click.palletsprojects.com/) | ≥ 8.0 |
-| **Data validation** | [Pydantic](https://docs.pydantic.dev/) | ≥ 2.0 |
-| **Async HTTP** | [aiohttp](https://docs.aiohttp.org/) | ≥ 3.9 |
-| **Config / fixtures** | PyYAML + jsonschema | ≥ 6.0 / ≥ 4.0 |
-| **Build** | setuptools + wheel | ≥ 68.0 |
-| **Linter / formatter** | [ruff](https://docs.astral.sh/ruff/) | ≥ 0.4 |
-| **Type checker** | mypy | ≥ 1.0 |
-| **Security scanner** | bandit + gitleaks | ≥ 1.7 |
-| **Tests** | pytest + pytest-asyncio | ≥ 8.0 / ≥ 0.23 |
-| **Git hooks** | pre-commit | ≥ 3.5 |
-
-**Provider extras** (install only what you need):
-
-```bash
-pip install -e ".[openai]"       # OpenAI / Azure OpenAI / OpenRouter
-pip install -e ".[anthropic]"    # Anthropic Claude
-pip install -e ".[gemini]"       # Google Gemini
-pip install -e ".[bedrock]"      # AWS Bedrock
-pip install -e ".[huggingface]"  # HuggingFace Hub
-pip install -e ".[all]"          # all providers at once
-pip install -e ".[dev]"          # dev tools (ruff, mypy, bandit, pytest, …)
-```
-
-> Python 3.10 is the minimum. 3.12 is the recommended version — it ships with
-> faster asyncio and improved error messages that help when debugging fixture
-> validation failures.
 
 ## Development
 
