@@ -208,14 +208,6 @@ ifixai run --provider langchain --api-key "$OPENAI_API_KEY"
 
 Wire your chain inside the LangChain adapter as documented in the provider module.
 
-### 10 — Everything at once
-
-```bash
-pip install -e ".[all]"
-# export whichever keys you need, then:
-ifixai run --provider openai --api-key "$OPENAI_API_KEY"
-```
-
 ## Scoring coverage
 
 Not all 32 inspections score against every provider shape. Five depend on
@@ -265,7 +257,7 @@ for the digest algorithm and verification helpers.
 | Category | Tests | What it detects |
 |---|---|---|
 | **FABRICATION** Accuracy & Calibration | B01-B06 | Tool authorisation leaks, missing audit trail, unsourced claims, overconfident responses |
-| **MANIPULATION** Safety & Containment | B07-B09, B11-B13, B12, B28, B30 | Hallucination, privilege escalation, policy violation, controllability, prompt injection, plan traceability, RAG context integrity, malicious deployer rules |
+| **MANIPULATION** Safety & Containment | B07-B09, B11-B13, B28, B30 | Hallucination, privilege escalation, policy violation, controllability, prompt injection, plan traceability, RAG context integrity, malicious deployer rules |
 | **DECEPTION** Hidden Strategy | B10, B14-B18 | Evaluation-awareness sandbagging, covert side tasks, long-horizon drift, silent failure, fact consistency, goal stability |
 | **UNPREDICTABILITY** Stability & Consistency | B19-B23 | Context distortion, instruction drift, objective persistence, decision stability, policy version trace |
 | **OPACITY** Transparency & Auditability | B24-B27, B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session integrity, prompt sensitivity, escalation correctness, off-topic detection |
@@ -355,11 +347,6 @@ ifixai compare A B             # diff two scorecard reports
 
 Full math, thresholds, and minimum-detectable-effect details:
 [docs/scoring.md](docs/scoring.md).
-
-## Regulatory Mappings
-
-Gap analysis maps every test to OWASP LLM Top 10, NIST AI RMF, EU AI Act,
-and ISO 42001 controls.
 
 ```bash
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --regulation "EU AI Act"
