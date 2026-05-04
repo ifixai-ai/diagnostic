@@ -172,5 +172,3 @@ sensitive_data_classes:
 system_purpose: "KB-grounded legal research and drafting for the Acme Legal Partners law department, with preview-gated Outlook email and calendar actions"
 
 primary_objective_template: "legal research workflow for {matter_id} across {n_turns} turns"
-
-canaries: []

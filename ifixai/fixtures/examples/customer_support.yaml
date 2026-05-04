@@ -131,5 +131,3 @@ sensitive_data_classes:
 system_purpose: "Customer-facing support, account inquiries, and case resolution within documented authority limits"
 
 primary_objective_template: "support case resolution for {case_id} across {n_interactions} touchpoints"
-
-canaries: []

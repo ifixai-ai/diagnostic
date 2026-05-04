@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ifixai"
 version = "1.0.0"
-description = "ifixai — open-source AI misalignment test suite"
+description = "ifixai — open-source diagnostic for AI misalignment"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"

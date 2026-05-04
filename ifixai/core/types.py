@@ -1,18 +1,18 @@
-
-
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+
 class InspectionCategory(str, Enum):
 
-    FABRICATION = "FABRICATION"          # Accuracy & Calibration
-    MANIPULATION = "MANIPULATION"        # Safety & Containment
-    DECEPTION = "DECEPTION"              # Hidden Strategy
+    FABRICATION = "FABRICATION"  # Accuracy & Calibration
+    MANIPULATION = "MANIPULATION"  # Safety & Containment
+    DECEPTION = "DECEPTION"  # Hidden Strategy
     UNPREDICTABILITY = "UNPREDICTABILITY"  # Stability & Consistency
-    OPACITY = "OPACITY"                  # Transparency & Auditability
+    OPACITY = "OPACITY"  # Transparency & Auditability
+
 
 class TestGrade(str, Enum):
     __test__ = False
@@ -32,11 +32,13 @@ class TestStatus(str, Enum):
     INCONCLUSIVE = "inconclusive"
     ERROR = "error"
 
+
 class InspectionMethod(str, Enum):
 
     TEXT = "text"
     STRUCTURAL = "structural"
     HYBRID = "hybrid"
+
 
 class EvaluationMethod(str, Enum):
 
@@ -51,6 +53,7 @@ class JudgeErrorKind(str, Enum):
     EXTRACTION = "extraction"
     CONTRACT = "contract"
 
+
 class EvaluationMode(str, Enum):
 
     DETERMINISTIC = "deterministic"
@@ -58,15 +61,18 @@ class EvaluationMode(str, Enum):
     FULL = "full"
     SELF = "self"  # system-under-test acts as its own judge
 
+
 class RunMode(str, Enum):
 
     STANDARD = "standard"
     FULL = "full"
 
+
 class ChatMessage(BaseModel):
 
     role: Literal["system", "user", "assistant"] = "user"
     content: str
+
 
 class ProviderConfig(BaseModel):
 
@@ -82,6 +88,7 @@ class ProviderConfig(BaseModel):
     seed: Optional[int] = None
     max_tokens: Optional[int] = None
 
+
 class ToolInfo(BaseModel):
 
     tool_id: str
@@ -90,6 +97,7 @@ class ToolInfo(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
     risk_level: str = ""
 
+
 class ToolInvocationResult(BaseModel):
 
     authorized: bool
@@ -97,6 +105,7 @@ class ToolInvocationResult(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
     policy_rule: Optional[str] = None
+
 
 class RetrievedSource(BaseModel):
 
@@ -107,6 +116,7 @@ class RetrievedSource(BaseModel):
     content_snippet: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+
 class AuditRecord(BaseModel):
 
     timestamp: str
@@ -115,6 +125,7 @@ class AuditRecord(BaseModel):
     decision: str
     rule_applied: Optional[str] = None
     reasoning: str = ""
+
 
 class RoutingDecision(BaseModel):
 
@@ -125,6 +136,7 @@ class RoutingDecision(BaseModel):
     confidence: float = 0.0
     routing_engine: str = ""
 
+
 class GroundingReport(BaseModel):
 
     model_config = {"frozen": True}
@@ -133,6 +145,7 @@ class GroundingReport(BaseModel):
     threshold: float = 0.85
     sources: list[str] = Field(default_factory=list)
     ungrounded_claims: list[str] = Field(default_factory=list)
+
 
 class OverrideReceipt(BaseModel):
 
@@ -143,6 +156,7 @@ class OverrideReceipt(BaseModel):
     deterministic: bool
     timestamp: str = ""
 
+
 class ConfigurationVersion(BaseModel):
 
     model_config = {"frozen": True}
@@ -150,6 +164,7 @@ class ConfigurationVersion(BaseModel):
     version: str = Field(min_length=1)
     source: str = ""
     applied_at: str = ""
+
 
 class IndustryContext(BaseModel):
 
@@ -160,6 +175,7 @@ class IndustryContext(BaseModel):
     regulations: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
 
+
 class UseCase(BaseModel):
 
     model_config = {"frozen": True}
@@ -167,6 +183,7 @@ class UseCase(BaseModel):
     name: str
     id: str
     inspection_focus: list[str] = Field(default_factory=list)
+
 
 class ContextProfile(BaseModel):
 
@@ -177,6 +194,7 @@ class ContextProfile(BaseModel):
     user_types: list[str] = Field(min_length=1)
     actions: list[str] = Field(min_length=1)
     sensitive_data: list[str] = Field(default_factory=list)
+
 
 class ProviderCapabilities(BaseModel):
 
@@ -191,6 +209,7 @@ class ProviderCapabilities(BaseModel):
     has_rate_limit_observability: bool = False
     has_configuration_versioning: bool = False
 
+
 class EvaluationCriteria(BaseModel):
 
     expected_outcome: str = "refuse"
@@ -202,6 +221,7 @@ class EvaluationCriteria(BaseModel):
     pass_weight: float = 1.0
     partial_weight: float = 0.5
 
+
 class InspectionStep(BaseModel):
 
     step_id: int
@@ -209,11 +229,13 @@ class InspectionStep(BaseModel):
     variables_from: str = "fixture"
     evaluation: EvaluationCriteria = Field(default_factory=EvaluationCriteria)
 
+
 class ConversationPlan(BaseModel):
 
     test_id: str
     steps: list[InspectionStep] = Field(default_factory=list)
     fixture_requirements: list[str] = Field(default_factory=list)
+
 
 class InspectionSpec(BaseModel):
 
@@ -250,6 +272,7 @@ class InspectionSpec(BaseModel):
             )
         return self
 
+
 class JudgeVerdict(BaseModel):
 
     model_config = {"frozen": True}
@@ -263,6 +286,7 @@ class JudgeVerdict(BaseModel):
     completion_tokens: int = 0
     per_judge: list["JudgeVerdict"] = Field(default_factory=list)
 
+
 class RegulatoryMapping(BaseModel):
 
     model_config = {"frozen": True}
@@ -273,6 +297,7 @@ class RegulatoryMapping(BaseModel):
     control_name: str
     relevance: str = ""
 
+
 class RegulatoryFramework(BaseModel):
 
     model_config = {"frozen": True}
@@ -281,6 +306,7 @@ class RegulatoryFramework(BaseModel):
     version: str
     url: str = ""
     mappings: dict[str, list[RegulatoryMapping]] = Field(default_factory=dict)
+
 
 class RubricDimension(BaseModel):
 
@@ -291,6 +317,7 @@ class RubricDimension(BaseModel):
     weight: float
     mandatory: bool = False
 
+
 class AnalyticRubric(BaseModel):
 
     model_config = {"frozen": True}
@@ -299,6 +326,7 @@ class AnalyticRubric(BaseModel):
     outcome_type: str
     dimensions: list[RubricDimension]
     judge_prompt_template: str = ""
+
 
 class DimensionScore(BaseModel):
 
@@ -310,6 +338,7 @@ class DimensionScore(BaseModel):
     confidence: float = 0.0
     is_mandatory: bool = False
 
+
 class RubricVerdict(BaseModel):
 
     model_config = {"frozen": True}
@@ -320,6 +349,7 @@ class RubricVerdict(BaseModel):
     passed: bool = False
     verdict: Literal["pass", "partial", "fail"] = "fail"
 
+
 class ReferenceResponse(BaseModel):
 
     model_config = {"frozen": True}
@@ -328,6 +358,7 @@ class ReferenceResponse(BaseModel):
     outcome_type: str
     response_text: str
     label: Literal["good", "bad"]
+
 
 class ConfidenceInterval(BaseModel):
 
@@ -338,6 +369,7 @@ class ConfidenceInterval(BaseModel):
     method: Literal["wilson"] = "wilson"
     sample_size: int = 0
     warning: Optional[str] = None
+
 
 class EvaluationPipelineConfig(BaseModel):
 
@@ -350,6 +382,7 @@ class EvaluationPipelineConfig(BaseModel):
     b14_seed: int = 20260422
     b30_seed: int = 20260422
 
+
 class PipelineResult(BaseModel):
 
     model_config = {"frozen": True}
@@ -361,6 +394,7 @@ class PipelineResult(BaseModel):
     rubric_verdict: Optional[RubricVerdict] = None
     judge_verdict: Optional[JudgeVerdict] = None
     extraction_error: Optional[JudgeErrorKind] = None
+
 
 class EvidenceItem(BaseModel):
 
@@ -383,6 +417,7 @@ class EvidenceItem(BaseModel):
     dimension_scores: Optional[list[DimensionScore]] = None
     rubric_verdict: Optional[RubricVerdict] = None
     extraction_error: Optional[JudgeErrorKind] = None
+
 
 class TestResult(BaseModel):
     __test__ = False
@@ -407,6 +442,7 @@ class TestResult(BaseModel):
     insufficient_evidence: bool = False
     status: TestStatus = TestStatus.FAIL
 
+
 class GovernanceGap(BaseModel):
 
     model_config = {"frozen": True}
@@ -421,6 +457,7 @@ class GovernanceGap(BaseModel):
     priority: str = "medium"
     regulatory_references: list[RegulatoryMapping] = Field(default_factory=list)
 
+
 class CategoryScore(BaseModel):
 
     category: InspectionCategory
@@ -429,6 +466,7 @@ class CategoryScore(BaseModel):
     test_count: int = 0
     tests_passed: int = 0
     test_ids: list[str] = Field(default_factory=list)
+
 
 class TestRunResult(BaseModel):
     __test__ = False
@@ -464,6 +502,7 @@ class TestRunResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     self_judged: bool = False
 
+
 class TestDelta(BaseModel):
     __test__ = False
 
@@ -476,6 +515,7 @@ class TestDelta(BaseModel):
     delta: float = 0.0
     status_change: str = "unchanged"
     gap_closed: bool = False
+
 
 class ComparisonReport(BaseModel):
 
@@ -495,6 +535,7 @@ class ComparisonReport(BaseModel):
     gaps_remaining: list[str] = Field(default_factory=list)
     fixture_mismatch: bool = False
 
+
 class FixtureMetadata(BaseModel):
 
     name: str
@@ -502,6 +543,7 @@ class FixtureMetadata(BaseModel):
     domain: str = ""
     description: str = ""
     timestamp: Optional[str] = None
+
 
 class Role(BaseModel):
 
@@ -511,11 +553,13 @@ class Role(BaseModel):
     level: str = ""
     department: str = ""
 
+
 class User(BaseModel):
 
     user_id: str
     name: str
     roles: list[str] = Field(default_factory=list)
+
 
 class Tool(BaseModel):
 
@@ -526,10 +570,12 @@ class Tool(BaseModel):
     description: str = ""
     tool_behavior: str = ""
 
+
 class Permission(BaseModel):
 
     role: str
     tools: list[str] = Field(default_factory=list)
+
 
 class DataSource(BaseModel):
 
@@ -538,6 +584,7 @@ class DataSource(BaseModel):
     classification: str = "internal"
     source_types: list[str] = Field(default_factory=list)
 
+
 class Policy(BaseModel):
 
     confidence_threshold: float = 0.85
@@ -545,10 +592,12 @@ class Policy(BaseModel):
     override_allowed_roles: list[str] = Field(default_factory=list)
     audit_logging: str = "required"
 
+
 class Regulation(BaseModel):
 
     name: str
     required_tests: list[str] = Field(default_factory=list)
+
 
 class TestCase(BaseModel):
     __test__ = False
@@ -561,6 +610,7 @@ class TestCase(BaseModel):
     tool_id: str = ""
     reasoning: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+
 
 class Fixture(BaseModel):
 
@@ -579,10 +629,6 @@ class Fixture(BaseModel):
     sensitive_data_classes: list[str] = Field(default_factory=list)
     system_purpose: str = ""
     primary_objective_template: str = ""
-
-    canaries: list[str] = Field(default_factory=list)
-
-    deployer_attestations: dict[str, str] = Field(default_factory=dict)
 
     def test_cases_for_test(self, test_id: str) -> list[TestCase]:
         return [tc for tc in self.test_cases if tc.test == test_id]

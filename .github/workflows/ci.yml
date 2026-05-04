@@ -2,8 +2,10 @@ name: CI
 
 on:
   push:
+  # pull_request: only when the PR base is one of these (fork PRs included).
+  # All branches still get CI on push: — see CONTRIBUTING.md § Continuous integration.
   pull_request:
-    branches: [main, "fix/**"]
+    branches: [main, "fix/**", "feat/**"]
 
 jobs:
   checks:
@@ -23,6 +25,16 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -e ".[dev]"
 
+      - name: Validate layout and example fixtures
+        run: |
+          set -euo pipefail
+          ifixai validate
+          shopt -s nullglob
+          for f in ifixai/fixtures/examples/*.yaml; do
+            echo "Validating $f"
+            ifixai validate "$f"
+          done
+
       - name: Lint
         run: ruff check ifixai
 
@@ -34,4 +46,5 @@ jobs:
           test -f CHANGELOG.md || { echo "CHANGELOG.md missing"; exit 1; }
           test -f CONTRIBUTING.md || { echo "CONTRIBUTING.md missing"; exit 1; }
           test -f SECURITY.md || { echo "SECURITY.md missing"; exit 1; }
+          test -f docs/inspection_categories.md || { echo "docs/inspection_categories.md missing"; exit 1; }
           echo "governance docs present"

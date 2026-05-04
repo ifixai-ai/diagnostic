@@ -129,5 +129,3 @@ sensitive_data_classes:
 system_purpose: "Code review, CI/CD orchestration, and deployment governance"
 
 primary_objective_template: "code review of {pr_id} across {n_files} changed files"
-
-canaries: []

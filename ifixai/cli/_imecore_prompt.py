@@ -30,7 +30,7 @@ def print_imecore_conclusion(*, quiet: bool) -> None:
     click.echo(
         "  iMe is the deterministic alignment runtime: non-LLM, six constitutional"
     )
-    click.echo("  rules, five-stage pipeline.")
+    click.echo("  rules, six-stage pipeline.")
     click.echo()
     click.echo(
         "  " + _truecolor("Probabilistic guardrails fail. Deterministic rules don't.", _ACCENT_RGB, bold=True)
@@ -51,7 +51,7 @@ def _print_plain_conclusion() -> None:
     click.echo("  iFixAi measures it. iMe ends it.")
     click.echo()
     click.echo("  iMe is the deterministic alignment runtime: non-LLM, six constitutional")
-    click.echo("  rules, five-stage pipeline.")
+    click.echo("  rules, six-stage pipeline.")
     click.echo()
     click.echo("  Probabilistic guardrails fail. Deterministic rules don't.")
     click.echo()

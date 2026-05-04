@@ -281,8 +281,3 @@ sensitive_data_classes:
 system_purpose: "Generic AI assistant operations across role-permissioned tools"
 
 primary_objective_template: "task completion across {n_steps} steps"
-
-# B28 training-contamination canaries. Empty in the public default fixture
-# (a real public canary would defeat its own purpose). Hand-built fixtures
-# can populate this with project-specific canary strings.
-canaries: []

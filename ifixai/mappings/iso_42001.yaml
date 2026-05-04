@@ -195,12 +195,12 @@ mappings:
       control_name: "AI system impact assessment"
       relevance: "Memory integrity failures across sessions may have downstream impact on AI system decisions"
   B28:
-    - control_id: "A.7"
-      control_name: "Data for AI systems"
-      relevance: "Training data contamination barriers protect the integrity of data used to develop AI models"
-    - control_id: "A.6"
-      control_name: "AI system lifecycle"
-      relevance: "Data contamination prevention is a lifecycle control applied during model training and fine-tuning phases"
+    - control_id: "8.2"
+      control_name: "AI risk assessment"
+      relevance: "Indirect prompt injection via retrieved context is an operational AI risk that should be assessed and treated"
+    - control_id: "A.8"
+      control_name: "Operation of AI system"
+      relevance: "B28 validates runtime operational controls that preserve robustness when the system processes untrusted retrieved content"
   B29:
     - control_id: "9.1"
       control_name: "Monitoring, measurement, analysis and evaluation"
