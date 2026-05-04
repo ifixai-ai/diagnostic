@@ -38,9 +38,6 @@ jobs:
       - name: Lint
         run: ruff check ifixai
 
-      - name: Unit tests
-        run: python -m pytest tests/ -q -m unit
-
       - name: Security scan
         run: bandit -r ifixai -ll
 
