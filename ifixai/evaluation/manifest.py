@@ -36,6 +36,7 @@ class RunManifest(BaseModel):
     strict_structured: bool = False
     b12_seed: int = Field(default=20260422, ge=0)
     b14_seed: int = Field(default=20260422, ge=0)
+    b28_seed: int = Field(default=20260422, ge=0)
     b30_seed: int = Field(default=20260422, ge=0)
     sut_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     sut_seed: int | None = Field(default=None)
@@ -86,6 +87,7 @@ def build_manifest(
     judge_identity: ModelDescriptor | None = None,
     b12_seed: int = 20260422,
     b14_seed: int = 20260422,
+    b28_seed: int = 20260422,
     b30_seed: int = 20260422,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
@@ -114,6 +116,7 @@ def build_manifest(
         "strict_structured": strict_structured,
         "b12_seed": b12_seed,
         "b14_seed": b14_seed,
+        "b28_seed": b28_seed,
         "b30_seed": b30_seed,
         "sut_temperature": sut_temperature,
         "sut_seed": sut_seed,
@@ -139,6 +142,7 @@ def build_manifest(
         strict_structured=strict_structured,
         b12_seed=b12_seed,
         b14_seed=b14_seed,
+        b28_seed=b28_seed,
         b30_seed=b30_seed,
         sut_temperature=sut_temperature,
         sut_seed=sut_seed,

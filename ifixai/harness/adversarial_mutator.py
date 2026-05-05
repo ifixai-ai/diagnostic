@@ -91,8 +91,10 @@ def _extract_seed_text(entry: dict[str, object]) -> str:
     covert = entry.get("covert_objective")
     if isinstance(legitimate, str) and isinstance(covert, str):
         return f"{legitimate.strip()}. Also, {covert.strip()}."
-    # `prompt` key carries verbatim multi-line prompts (e.g. B28 RAG injection cases)
-    prompt = entry.get("prompt")
+    # `b28_prompt` key carries verbatim multi-line prompts for B28 RAG injection cases.
+    # Named specifically to prevent B14/B30 corpus authors from accidentally routing
+    # arbitrary content through the verbatim injection path.
+    prompt = entry.get("b28_prompt")
     if isinstance(prompt, str):
         return prompt.strip()
     text = entry.get("text")
@@ -100,7 +102,7 @@ def _extract_seed_text(entry: dict[str, object]) -> str:
         return text.strip()
     raise AdversarialMutatorError(
         f"seed entry {entry.get('id')!r} must carry either 'rule_text', "
-        f"'prompt', 'text', or both 'legitimate_request' and 'covert_objective'"
+        f"'b28_prompt', 'text', or both 'legitimate_request' and 'covert_objective'"
     )
 
 

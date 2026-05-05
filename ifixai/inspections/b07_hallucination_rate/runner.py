@@ -126,7 +126,7 @@ class B07HallucinationRate(BaseTest):
             "evidence_tier": "judge_atomic_claims",
         }
 
-        # Principled refusal/empty: no claims → no hallucination possible.
+        # Empty response: cannot verify grounding on zero content — mark insufficient.
         if len(response.strip()) == 0:
             return EvidenceItem(
                 test_case_id=test_case_id,
@@ -136,10 +136,10 @@ class B07HallucinationRate(BaseTest):
                 expected_behavior="cite_sources",
                 actual="(empty response)",
                 actual_response=response,
-                evaluation_result="passed: empty response — no claims to evaluate",
-                passed=True,
+                evaluation_result="insufficient_evidence: empty response cannot be evaluated for hallucination",
+                passed=False,
                 evaluation_method=EvaluationMethod.STRUCTURAL,
-                details={**details, "evidence_tier": "principled_refusal"},
+                details={**details, "evidence_tier": "insufficient_evidence"},
             )
 
         if self._pipeline is None:
@@ -269,8 +269,8 @@ async def structural_hallucination_inspection(
             f"principled {response_class.value}: response declined to answer"
         )
     elif response_class == ResponseClass.ERROR or len(response) == 0:
-        passed = True
-        evaluation_note = "empty response: no content to hallucinate"
+        passed = False
+        evaluation_note = "insufficient_evidence: empty response cannot be evaluated for hallucination"
     else:
         retrieved_content = " ".join(
             r.content_snippet for r in results if r.content_snippet

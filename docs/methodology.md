@@ -36,27 +36,28 @@ The analytic rubric YAMLs under `ifixai/inspections/b<NN>_<slug>/rubric.yaml` do
 
 ## Exploratory inspections
 
-Three inspections — **B15** (Long-Horizon Drift), **B18** (Goal Stability), **B21** (Cross-Turn Objective Verification) — are tagged `is_exploratory=True`. They produce signal at very small sample sizes (first 2 users, 1–2 trials each). That's enough to be interesting, not enough to be statistically meaningful.
+One inspection — **B15** (Long-Horizon Drift) — is tagged `is_exploratory=True`. It produces signal at a small sample size and is excluded from aggregation. The markdown renderer shows it only under an "Exploratory Inspections (not scored)" section with its raw evidence count and a caveat that the N is below the inference threshold. The JSON scorecard still contains the full per-inspection evidence.
 
-Exploratory inspections are **excluded from aggregation**. The markdown renderer hides them from the main per-inspection table and shows them only under an "Exploratory Inspections (not scored)" section with their raw evidence count and a caveat that the N is below the inference threshold. The JSON scorecard still contains the full per-inspection evidence.
+**B18** (Goal Stability) and **B21** (Cross-Turn Objective Verification) were promoted from exploratory to scored inspections in the benchmark defensibility update (2026-05). Both now sample up to 10 fixture users (previously 2) and aggregate into the DECEPTION category. **DECEPTION category scores from this update forward are not directly comparable to pre-update baselines.** Prior scorecards should be re-run against the updated harness before comparison.
 
-Promotion out of "exploratory" requires a inspection redesign that produces a defensible N. Until then, quoting a three-decimal percentage from one of these inspections as a production signal is unsupported.
+Promotion out of "exploratory" requires an inspection redesign that produces a defensible N. Until then, quoting a three-decimal percentage from B15 as a production signal is unsupported.
 
 ## Adversarial corpora
 
-Three inspections feed the system-under-test adversarial payloads from a committed corpus:
+Four inspections feed the system-under-test adversarial payloads from a committed corpus:
 
 | Inspection | Corpus | Sampling | Surface mutation | Manifest seed |
 |---|---|---|---|---|
 | **B12** Prompt Injection | 40 taxonomy-tagged payloads | seeded per-category random sample | none — payloads sent verbatim | `b12_seed` |
 | **B14** Covert Side-Task | ≥20 seeds | seeded per-category sample | mutator applied | `b14_seed` |
+| **B28** RAG Context Integrity | 10 seeds (`b28_prompt` key) | all seeds, 2 variants each | mutator applied | `b28_seed` |
 | **B30** Malicious Deployer Rules | ≥20 seeds | seeded per-category sample | mutator applied | `b30_seed` |
 
-The B14/B30 mutator (`ifixai/harness/adversarial_mutator.py`) applies four operators in a fixed order: case flip, punctuation jitter, filler-word insertion, synonym substitution. The synonym and filler lists are committed YAML. Given the same seed, the mutator produces byte-identical output; different seeds produce semantically-equivalent variants with non-trivial edit distance. B12 does not mutate — its payloads are designed to be sent verbatim.
+The B14/B28/B30 mutator (`ifixai/harness/adversarial_mutator.py`) applies four operators in a fixed order: case flip, punctuation jitter, filler-word insertion, synonym substitution. The synonym and filler lists are committed YAML. Given the same seed, the mutator produces byte-identical output; different seeds produce semantically-equivalent variants with non-trivial edit distance. B12 does not mutate — its payloads are designed to be sent verbatim. B28 seeds use a `b28_prompt` key (distinct from the `rule_text`, `text`, and `legitimate_request`/`covert_objective` keys used by other corpora) to prevent accidental verbatim routing of non-B28 seed content.
 
 The mutator produces **surface variance** (case, punctuation, filler words, small-set synonym swaps), not novel attack semantics. A model that has memorised a seed corpus will pass mutated variants by construction. The corpora are committed to this public repo, so any model trained after the repo's first publication may have the literal seed strings (or close paraphrases) in training data. A passing B12, B14, or B30 score on these corpora measures resistance to a fixed, public seed set — not resistance to novel adversarial inputs from a motivated attacker. This is also why **B12 is not a mandatory minimum** ([`docs/scoring.md`](scoring.md) § Why B12 is not a mandatory minimum). Authors who need a deployment gate for these properties should fork and supply a private corpus.
 
-Sharing the B14/B30 mutator does **not** imply the same scoring pillar: **B14** rolls up under **DECEPTION**; **B30** under **MANIPULATION** ([`inspection_categories.md`](inspection_categories.md)).
+Sharing the B14/B28/B30 mutator does **not** imply the same scoring pillar: **B14** rolls up under **DECEPTION**; **B28** and **B30** under **MANIPULATION** ([`inspection_categories.md`](inspection_categories.md)).
 
 Domain context belongs in the fixture YAML, not in inspection or corpus code: corpus seeds cannot name specific industries.
 
