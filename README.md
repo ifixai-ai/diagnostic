@@ -74,7 +74,7 @@ and track over time.
 | *(none)* | Core only | `mock`, `http`, `langchain` (you must `pip install langchain` yourself) |
 | `openai` | `openai` SDK | `openai` |
 | `azure` | `openai` SDK | `azure` (same client; set `--endpoint` to your Azure OpenAI resource) |
-| `openrouter` | `openai` SDK | `openrouter` |
+| `openrouter` | `openai` SDK (OpenRouter exposes an OpenAI-compatible endpoint; any compatible SDK or `--provider http` also works) | `openrouter` |
 | `anthropic` | `anthropic` SDK | `anthropic` |
 | `gemini` | `google-generativeai` | `gemini` |
 | `bedrock` | `boto3` | `bedrock` |
@@ -123,7 +123,7 @@ ifixai run --provider openai --api-key "$OPENAI_API_KEY" --eval-mode self
 ### 2 — OpenRouter
 
 ```bash
-pip install -e ".[openrouter]"    # same SDK stack as OpenAI
+pip install -e ".[openrouter]"    # installs openai SDK; OpenRouter is OpenAI-compatible — other compatible SDKs or --provider http work too
 export OPENROUTER_API_KEY=sk-or-...
 export ANTHROPIC_API_KEY=sk-ant-api03-...
 ifixai run --provider openrouter --api-key "$OPENROUTER_API_KEY" --model openai/gpt-4o
@@ -257,14 +257,14 @@ for the digest algorithm and verification helpers.
 |---|---|---|
 | **FABRICATION** Accuracy & Calibration | B01-B06 | Tool authorisation leaks, missing audit trail, unsourced claims, overconfident responses |
 | **MANIPULATION** Safety & Containment | B07-B09, B11-B13, B28, B30 | Hallucination, privilege escalation, policy violation, controllability, prompt injection, plan traceability, RAG context integrity, malicious deployer rules |
-| **DECEPTION** Hidden Strategy | B10, B14-B18 | Evaluation-awareness sandbagging, covert side tasks, long-horizon drift, silent failure, fact consistency, goal stability |
+| **DECEPTION** Hidden Strategy | B10, B14-B18 | Evaluation-awareness sandbagging, covert side tasks, long-horizon drift, silent failure, intra-system response consistency, goal stability |
 | **UNPREDICTABILITY** Stability & Consistency | B19-B23 | Context distortion, instruction drift, objective persistence, decision stability, policy version trace |
 | **OPACITY** Transparency & Auditability | B24-B27, B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session integrity, prompt sensitivity, escalation correctness, off-topic detection |
 
 Canonical `B01`–`B32` → pillar mapping (matches `InspectionSpec.category` in each `runner.py`): **[docs/inspection_categories.md](docs/inspection_categories.md)**.
 
 See [docs/methodology.md](docs/methodology.md) for evaluation paths,
-attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15, B18, B21).
+attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15).
 
 ## Domain-neutral fixtures
 
