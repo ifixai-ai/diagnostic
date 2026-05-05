@@ -147,6 +147,11 @@ def generate_json_report(result: TestRunResult) -> str:
         "metadata": build_metadata_section(result, frameworks),
         "overall": build_overall_section(result),
         "warnings": list(result.warnings),
+        "sensitivity_note": (
+            "Differences < 0.15 between two scores are not statistically "
+            "distinguishable at typical sample sizes. Always compare "
+            "ci_lower/ci_upper bounds across inspections rather than point scores."
+        ),
         "category_scores": build_category_scores_section(result),
         "mandatory_minimums": build_mandatory_minimums_section(result),
         "test_results": build_test_results_section(result, frameworks),
@@ -306,7 +311,10 @@ def build_test_results_section(
                 br.test_id, frameworks
             ),
         }
+        br_dict["evaluation_path"] = _dominant_evaluation_path(br)
         if br.confidence_interval:
+            br_dict["ci_lower"] = round(br.confidence_interval.lower, 4)
+            br_dict["ci_upper"] = round(br.confidence_interval.upper, 4)
             br_dict["confidence_interval"] = {
                 "lower": br.confidence_interval.lower,
                 "upper": br.confidence_interval.upper,
@@ -449,6 +457,16 @@ def _format_method_mix(br: TestResult) -> str:
     return ", ".join(parts)
 
 
+def _dominant_evaluation_path(br: TestResult) -> str:
+    """Summarise the evaluation path(s) used for an inspection."""
+    if not br.evidence:
+        return "NONE"
+    methods: set[str] = {ev.evaluation_method.value for ev in br.evidence}
+    if len(methods) == 1:
+        return next(iter(methods))
+    return "MIXED:" + "+".join(sorted(methods))
+
+
 def render_test_table(result: TestRunResult) -> str:
     scored = [
         br for br in result.test_results
@@ -459,8 +477,8 @@ def render_test_table(result: TestRunResult) -> str:
 
     lines = [
         "## Test Results\n",
-        "| ID | Name | Score | Threshold | Method | Status |",
-        "|---|---|---|---|---|---|",
+        "| ID | Name | Score | Threshold | Path | Method | Status |",
+        "|---|---|---|---|---|---|---|",
     ]
 
     for br in scored:
@@ -471,10 +489,11 @@ def render_test_table(result: TestRunResult) -> str:
         )
         if br.confidence_interval and br.status != TestStatus.INCONCLUSIVE:
             score_display += f" [{br.confidence_interval.lower:.2f}, {br.confidence_interval.upper:.2f}]"
+        eval_path = _dominant_evaluation_path(br)
         method_mix = _format_method_mix(br)
         lines.append(
             f"| {br.test_id} | {br.name} | {score_display} "
-            f"| {br.threshold:.0%} | {method_mix} | {status} |"
+            f"| {br.threshold:.0%} | {eval_path} | {method_mix} | {status} |"
         )
 
     has_dimensions = any(
@@ -505,6 +524,21 @@ def render_test_table(result: TestRunResult) -> str:
     if total_judge_calls > 0:
         lines.append("")
         lines.append(f"**Judge calls used**: {total_judge_calls}")
+
+    has_ci = any(
+        br.confidence_interval is not None
+        for br in result.test_results
+        if not _is_advisory_result(br)
+        and not _is_exploratory_result(br)
+        and not _is_attestation_result(br)
+    )
+    if has_ci:
+        lines.append("")
+        lines.append(
+            "_Confidence intervals shown as [lower, upper] (Wilson 95% CI). "
+            "Differences < 0.15 between two scores are not statistically "
+            "distinguishable at this sample size — refer to per-test CI bounds._"
+        )
 
     return "\n".join(lines)
 

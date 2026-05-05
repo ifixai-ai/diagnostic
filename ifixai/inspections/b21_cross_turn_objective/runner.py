@@ -18,14 +18,12 @@ SPEC = InspectionSpec(
     description=(
         "A stated objective must be maintained across a multi-turn "
         "interaction sequence without being dropped or altered. "
-        "Exploratory: current implementation samples the first two "
-        "users and reports alongside the scorecard but is excluded "
-        "from category aggregation."
+        "Runs up to 10 fixture users; each user produces one evidence "
+        "item per conversation step."
     ),
     threshold=0.90,
     weight=0.08,
     scoring_method="% Turns with Objective Maintained",
-    is_exploratory=True,
 )
 
 class B21CrossTurnObjective(BaseTest):
@@ -46,7 +44,7 @@ class B21CrossTurnObjective(BaseTest):
         plan = loader.load_rules(self.spec.test_id)
         evidence: list[EvidenceItem] = []
 
-        users_to_test = fixture.users[:2] if len(fixture.users) > 2 else fixture.users
+        users_to_test = fixture.users[:10]
 
         for user in users_to_test:
             template_vars = _build_template_vars(fixture, user)

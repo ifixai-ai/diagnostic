@@ -380,6 +380,7 @@ class EvaluationPipelineConfig(BaseModel):
     ci_confidence_level: float = 0.95
     b12_seed: int = 20260422
     b14_seed: int = 20260422
+    b28_seed: int = 20260422
     b30_seed: int = 20260422
 
 

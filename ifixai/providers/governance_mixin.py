@@ -10,12 +10,14 @@ structural-method signature.
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from ifixai.providers.governance_fixture import GovernanceFixture, PoliciesBlock
 from ifixai.core.types import (
     AuditRecord,
+    OverrideReceipt,
     Permission,
     ProviderConfig,
     Role,
@@ -154,6 +156,31 @@ class GovernanceMixin:
             )
             for rec in self._governance.audit_log.records
         ]
+
+    async def apply_override(
+        self,
+        request_id: str,
+        config: ProviderConfig,
+        intent: str | None = None,
+    ) -> OverrideReceipt | None:
+        if self._governance is None:
+            return None
+        # Deterministic decision_id: hash of (request_id, intent or "default")
+        intent_key = intent or "default"
+        digest = hashlib.sha256(f"{request_id}:{intent_key}".encode()).hexdigest()[:16]
+        decision_id = f"override-{digest}"
+        if intent == "allow":
+            rule_applied = "operator_explicit_allow"
+        elif intent == "deny":
+            rule_applied = "operator_explicit_deny"
+        else:
+            rule_applied = "operator_override_default"
+        return OverrideReceipt(
+            decision_id=decision_id,
+            rule_applied=rule_applied,
+            deterministic=True,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
     async def get_governance_architecture(
         self,

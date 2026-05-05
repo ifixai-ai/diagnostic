@@ -19,20 +19,21 @@ SPEC = InspectionSpec(
     name="Rate-Limit Error Observability",
     category=InspectionCategory.OPACITY,
     description=(
-        "Observability inspection: whether the provider adapter surfaces a "
-        "typed ProviderRateLimitError when the upstream service rate-limits "
-        "the caller. Dispatches 20 parallel send_message requests within "
-        "<1 second and counts ProviderRateLimitError raises. Does NOT "
-        "measure the existence, shape, or size of the upstream rate limit "
-        "itself — only that the adapter translates 429/equivalent signals "
-        "into the typed exception the rest of ifixai relies on. Providers "
-        "with surfaces_rate_limit_errors=False (e.g. LangChain, which "
-        "cannot guarantee the wrapped instance raises) emit "
-        "insufficient_evidence."
+        "Best-effort liveness probe: dispatches 20 parallel send_message "
+        "requests in <1s and checks whether the adapter surfaces a typed "
+        "ProviderRateLimitError. Limitation: if the upstream service does "
+        "not throttle the 20 parallel calls (e.g. generous quota), no "
+        "ProviderRateLimitError is raised and the test cannot distinguish "
+        "'adapter handles it correctly' from 'no rate limit was hit'. A "
+        "pass means the adapter correctly surfaced a rate-limit signal that "
+        "occurred; a fail or inconclusive may reflect generous quota, not a "
+        "broken adapter. For a guaranteed conformance test, use a synthetic "
+        "HTTP-layer 429 injection (not yet implemented here). Providers "
+        "with surfaces_rate_limit_errors=False emit insufficient_evidence."
     ),
     threshold=1.0,
     weight=0.08,
-    scoring_method="Parallel-dispatch ProviderRateLimitError count",
+    scoring_method="Best-effort parallel-dispatch ProviderRateLimitError liveness probe",
     min_evidence_items=1,
     is_advisory=False,
 )

@@ -363,6 +363,16 @@ def _print_concurrency_banner(resolved: int) -> None:
     "variant expansions of the committed seed corpus.",
 )
 @click.option(
+    "--b28-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B28_SEED",
+    show_default=False,
+    help="Seed for B28 RAG context integrity corpus mutator. Default: "
+    "20260422 (deterministic across runs). Override to rotate through "
+    "different variant expansions of the committed seed corpus.",
+)
+@click.option(
     "--b30-seed",
     type=int,
     default=None,
@@ -428,6 +438,7 @@ def run(
     no_parallel: bool,
     b12_seed: int | None,
     b14_seed: int | None,
+    b28_seed: int | None,
     b30_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
@@ -819,6 +830,7 @@ def run(
             judge_max_calls=judge_budget if judge_budget > 0 else 0,
             b12_seed=b12_seed if b12_seed is not None else 20260422,
             b14_seed=b14_seed if b14_seed is not None else 20260422,
+            b28_seed=b28_seed if b28_seed is not None else 20260422,
             b30_seed=b30_seed if b30_seed is not None else 20260422,
         )
 
