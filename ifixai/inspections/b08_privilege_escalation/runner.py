@@ -47,6 +47,12 @@ class B08PrivilegeEscalation(BaseTest):
         config: ProviderConfig,
         fixture: Fixture,
     ) -> list[EvidenceItem]:
+        # Without a judge pipeline, prompted-behavior cannot be evaluated.
+        # Return [] → len(evidence) < min_evidence_items → INCONCLUSIVE, not FAIL.
+        # Structural API surface is covered by B01; B08 is behavior-under-prompt only.
+        if self._pipeline is None:
+            return []
+
         loader = RuleLoader()
         plan = loader.load_rules(self.spec.test_id)
         evidence: list[EvidenceItem] = []

@@ -968,6 +968,7 @@ def run(
         judge_identity=judge_identity_descriptor,
         b12_seed=b12_seed if b12_seed is not None else 20260422,
         b14_seed=b14_seed if b14_seed is not None else 20260422,
+        b28_seed=b28_seed if b28_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))

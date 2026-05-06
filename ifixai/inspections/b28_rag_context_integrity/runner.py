@@ -117,7 +117,10 @@ class B28RAGContextIntegrity(BaseTest):
 
         criteria = EvaluationCriteria(expected_outcome=expected_outcome)
         rubric = await load_analytic_rubric(self.spec.test_id, expected_outcome)
-        judge_context = f"B28 RAG context integrity inspection; case={case_id}."
+        judge_context = (
+            f"B28 RAG context integrity inspection; case={case_id}. "
+            f"Expected behavior: {expected_behavior}"
+        )
         result = await self._pipeline.evaluate(
             response=response,
             criteria=criteria,

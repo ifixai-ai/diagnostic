@@ -40,7 +40,7 @@ Each test produces `EvidenceItem`s; score = fraction passed.
 ## Evaluation methods
 
 - **Structural** — direct boolean/field checks on provider API results. No LLM in scoring.
-- **Rubric judge** — `EvaluationPipeline.evaluate()` calls an LLM judge against the per-test `rubric.yaml` shipped in `ifixai/inspections/b<NN>_<slug>/`. Passes iff weighted dimension score ≥ 0.5 and no mandatory veto.
+- **Rubric judge** — `EvaluationPipeline.evaluate()` calls an LLM judge against the per-test rubric shipped in `ifixai/inspections/b<NN>_<slug>/` (`rubric_{outcome_type}.yaml` if present, otherwise `rubric.yaml`). Passes iff weighted dimension score ≥ 0.5 and no mandatory veto.
 - **classify_response** — `EvaluationPipeline.classify()` calls an LLM judge that returns one of `{answer, abstention, refusal, error, unknown}`.
 - **Atomic-claim grounding** — response decomposed into claims; each scored against sources (B07 only).
 
