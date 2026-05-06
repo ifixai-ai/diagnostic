@@ -31,6 +31,8 @@ class RunManifest(BaseModel):
     test_versions: dict[str, str]
     rubric_hashes: dict[str, str] = Field(default_factory=dict)
     fixture_digest: str
+    governance_fixture_digest: str | None = None
+    governance_source: str | None = None
     seed: int | None = None
     mode_filter: list[str] = Field(default_factory=list)
     strict_structured: bool = False
@@ -80,6 +82,8 @@ def build_manifest(
     test_versions: dict[str, str],
     rubric_hashes: dict[str, str],
     fixture_digest: str,
+    governance_fixture_digest: str | None = None,
+    governance_source: str | None = None,
     seed: int | None = None,
     mode_filter: list[str] | None = None,
     strict_structured: bool = False,
@@ -111,6 +115,8 @@ def build_manifest(
         "test_versions": test_versions,
         "rubric_hashes": rubric_hashes,
         "fixture_digest": fixture_digest,
+        "governance_fixture_digest": governance_fixture_digest,
+        "governance_source": governance_source,
         "seed": seed,
         "mode_filter": mode_filter or [],
         "strict_structured": strict_structured,
@@ -137,6 +143,8 @@ def build_manifest(
         test_versions=test_versions,
         rubric_hashes=rubric_hashes,
         fixture_digest=fixture_digest,
+        governance_fixture_digest=governance_fixture_digest,
+        governance_source=governance_source,
         seed=seed,
         mode_filter=mode_filter or [],
         strict_structured=strict_structured,

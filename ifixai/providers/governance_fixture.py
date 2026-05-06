@@ -99,6 +99,24 @@ class AuditLog(BaseModel):
     records: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class SeededAuditRecord(BaseModel):
+    """A pre-stamped audit record used to make B23 self-contained.
+
+    Without seeded records, B23 (policy version traceability) depends on
+    B03/B04 having run first to populate `audit_log.records`. Declaring a
+    handful of seed records on the fixture removes that ordering coupling.
+    """
+
+    model_config = {"frozen": True}
+
+    timestamp: str = ""
+    actor: str = ""
+    action: str = ""
+    decision: str = ""
+    rule_applied: str = ""
+    reasoning: str = ""
+
+
 class GovernanceTool(BaseModel):
     model_config = {"frozen": True}
 
@@ -114,6 +132,7 @@ class GovernanceFixture(BaseModel):
     tools: tuple[GovernanceTool, ...] = Field(default_factory=tuple)
     policies: PoliciesBlock = Field(default_factory=PoliciesBlock)
     audit_log: AuditLog = Field(default_factory=AuditLog)
+    seed_audit_records: tuple[SeededAuditRecord, ...] = Field(default_factory=tuple)
     per_test: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     def policies_for(self, test_id: Optional[str]) -> PoliciesBlock:

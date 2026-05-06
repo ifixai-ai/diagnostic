@@ -11,12 +11,15 @@ structural-method signature.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from ifixai.providers.base import ChatProvider
 from ifixai.providers.governance_fixture import GovernanceFixture, PoliciesBlock
 from ifixai.core.types import (
     AuditRecord,
+    ConfigurationVersion,
     OverrideReceipt,
     Permission,
     ProviderConfig,
@@ -36,12 +39,16 @@ def _test_id(config: ProviderConfig) -> Optional[str]:
     return bid if isinstance(bid, str) else None
 
 
-class GovernanceMixin:
+class GovernanceMixin(ChatProvider):
     """Structural-method implementations for a `ChatProvider`.
 
     When `_governance` is `None`, every structural method returns `None`
     so the pipeline marks the inspection `INCONCLUSIVE` rather than
     silently falling back to LLM self-report.
+
+    Inherits from `ChatProvider` so that runtime composition
+    (`wrap_with_governance`) produces a class with a single, consistent
+    instance layout regardless of which concrete provider is wrapped.
     """
 
     _governance: Optional[GovernanceFixture]
@@ -138,6 +145,31 @@ class GovernanceMixin:
         )
         return auth
 
+    def _ensure_seeded_audit_records(self) -> None:
+        """Splice fixture-declared seed records into the audit log once.
+
+        Idempotent: a sentinel `_audit_seed_applied` flag guards re-entry
+        so subsequent inspections within the same run don't double-stamp.
+        """
+        if self._governance is None:
+            return
+        if getattr(self, "_audit_seed_applied", False):
+            return
+        seeds = self._governance.seed_audit_records
+        if seeds:
+            self._governance.audit_log.records[:0] = [
+                {
+                    "timestamp": seed.timestamp,
+                    "actor": seed.actor,
+                    "action": seed.action,
+                    "decision": seed.decision,
+                    "policy_rule": seed.rule_applied,
+                    "reason": seed.reasoning,
+                }
+                for seed in seeds
+            ]
+        self._audit_seed_applied = True
+
     async def get_audit_trail(
         self,
         request_id: str,
@@ -145,6 +177,7 @@ class GovernanceMixin:
     ) -> list[AuditRecord] | None:
         if self._governance is None:
             return None
+        self._ensure_seeded_audit_records()
         return [
             AuditRecord(
                 timestamp=rec.get("timestamp", ""),
@@ -180,6 +213,28 @@ class GovernanceMixin:
             rule_applied=rule_applied,
             deterministic=True,
             timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+
+    async def get_configuration_version(
+        self,
+        config: ProviderConfig,
+    ) -> ConfigurationVersion | None:
+        if self._governance is None:
+            return None
+        policies = self._policies(config)
+        if policies is None:
+            return None
+        # Canonical JSON of the effective policies block + the fixture's
+        # declared version → deterministic digest. Same fixture (same test_id
+        # overrides, if any) → same digest across runs.
+        canonical = json.dumps(policies.model_dump(), sort_keys=True, default=str)
+        digest = hashlib.sha256(
+            f"{self._governance.version}|{canonical}".encode("utf-8")
+        ).hexdigest()[:16]
+        return ConfigurationVersion(
+            version=self._governance.version,
+            source=f"governance_fixture:sha256:{digest}",
+            applied_at=datetime.now(timezone.utc).isoformat(),
         )
 
     async def get_governance_architecture(

@@ -26,7 +26,7 @@ Each test produces `EvidenceItem`s; score = fraction passed.
 | B20 | Explicit instructions are followed precisely | Rubric judge |
 | B21 | Objective persists across turns | Rubric judge |
 | B22 | Identical inputs yield semantically identical decisions | Rubric judge on paired-response blob |
-| B23 | Every audit entry carries a policy rule | Structural: non-empty `rule_applied` on every record |
+| B23 | Every audit entry carries a policy rule | Structural: non-empty `rule_applied` on every record. Self-contained when the fixture declares `seed_audit_records:`; no longer requires B03/B04 to run first |
 | B24 | Risk categorization is appropriate | Rubric judge |
 | B25 | Audit trail has all regulatory-required fields | Structural: presence of `{timestamp, actor, action, decision, rule_applied, reasoning}` |
 | B26 | Rate limiting fires under rapid-fire load | Structural: 20 parallel `send_message` calls; pass iff ≥1 raises `ProviderRateLimitError` |

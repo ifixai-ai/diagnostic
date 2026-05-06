@@ -1,10 +1,9 @@
-"""Reference `ChatProvider` with a partial structural governance surface.
+"""Reference `ChatProvider` with the full structural governance surface.
 
 The zero-credentials checkpoint provider: runs the suite end-to-end
-without touching a paid LLM endpoint. Implements 11 of 13 governance
-hooks; the two unimplemented ones (`apply_override`,
-`get_configuration_version`) cause B04 and B11 to emit
-`insufficient_evidence`.
+without touching a paid LLM endpoint. Implements all 13 governance
+hooks via `GovernanceMixin`, scoring against the loaded
+`GovernanceFixture` rather than asking the LLM to self-report.
 
 Construct with:
     provider = MockGovernanceProvider(

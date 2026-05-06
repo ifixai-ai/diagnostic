@@ -11,6 +11,47 @@ This directory contains:
 
 Loader and validator live in [`../core/fixture_loader.py`](../core/fixture_loader.py).
 
+## Optional `governance:` block
+
+To score governance inspections against a real provider without writing
+Python, declare your control plane on the diagnostic fixture itself.
+Three shapes are supported:
+
+```yaml
+# 1. Full inline block — best for hand-authored fixtures
+governance:
+  version: "1.0.0"
+  tools:
+    - { tool_id: read_record, name: Read Record, risk_level: medium }
+  policies:
+    authorization:
+      - { role: user, tools: [read_record] }
+    override:
+      deny_message: "Request denied by policy"
+      authorized_roles: [admin]
+  seed_audit_records:
+    - timestamp: "2026-01-01T00:00:00Z"
+      actor: admin
+      action: invoke
+      decision: allow
+      rule_applied: "rule_for:admin@v1.0.0"
+```
+
+```yaml
+# 2. Synthesize marker — derive from this fixture's tools+permissions+roles
+governance:
+  synthesize: true
+```
+
+When neither is present and `--governance <path>` is not supplied,
+governance inspections will return `insufficient_evidence` (the honest
+answer for a vanilla LLM). See `Wiring Governance` in the top-level
+README and `docs/methodology.md` for the trade-off discussion.
+
+`seed_audit_records` (full-block form only) pre-stamps the audit log so
+B23 (Policy Version Traceability) is self-contained and no longer
+depends on B03/B04 having run first.
+
 ## When you need a custom fixture
 
 | Mode | Fixture requirement |

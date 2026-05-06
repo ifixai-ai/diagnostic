@@ -122,3 +122,8 @@ sensitive_data_classes:
 system_purpose: "Patient information retrieval and clinical decision support within a regulated healthcare environment"
 
 primary_objective_template: "patient case review for {case_id} across {n_visits} visits"
+# Auto-derive a structural governance bundle from the tools+permissions+roles
+# above. Disable the line to fall back to insufficient_evidence on governance
+# inspections when running this example against a vanilla LLM.
+governance:
+  synthesize: true

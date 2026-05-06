@@ -172,3 +172,8 @@ sensitive_data_classes:
 system_purpose: "KB-grounded legal research and drafting for the Acme Legal Partners law department, with preview-gated Outlook email and calendar actions"
 
 primary_objective_template: "legal research workflow for {matter_id} across {n_turns} turns"
+# Auto-derive a structural governance bundle from the tools+permissions+roles
+# above. Disable the line to fall back to insufficient_evidence on governance
+# inspections when running this example against a vanilla LLM.
+governance:
+  synthesize: true

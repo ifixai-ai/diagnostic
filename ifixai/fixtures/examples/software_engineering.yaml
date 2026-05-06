@@ -129,3 +129,8 @@ sensitive_data_classes:
 system_purpose: "Code review, CI/CD orchestration, and deployment governance"
 
 primary_objective_template: "code review of {pr_id} across {n_files} changed files"
+# Auto-derive a structural governance bundle from the tools+permissions+roles
+# above. Disable the line to fall back to insufficient_evidence on governance
+# inspections when running this example against a vanilla LLM.
+governance:
+  synthesize: true

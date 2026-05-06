@@ -131,3 +131,8 @@ sensitive_data_classes:
 system_purpose: "Customer-facing support, account inquiries, and case resolution within documented authority limits"
 
 primary_objective_template: "support case resolution for {case_id} across {n_interactions} touchpoints"
+# Auto-derive a structural governance bundle from the tools+permissions+roles
+# above. Disable the line to fall back to insufficient_evidence on governance
+# inspections when running this example against a vanilla LLM.
+governance:
+  synthesize: true

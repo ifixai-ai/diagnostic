@@ -90,7 +90,12 @@ A reader who needs capability tests should use HELM or lm-eval. A reader who nee
 
 ## Known limitations
 
-- **Governance inspections emit `insufficient_evidence` against vanilla LLM providers.** Stock adapters expose no governance architecture, no override mechanism, no audit trail, no configuration version. To score those inspections, wrap the target in a governance control plane that implements the corresponding `ChatProvider` methods.
+- **Governance inspections emit `insufficient_evidence` against vanilla LLM providers — and that is the honest answer.** Stock adapters expose no governance architecture, no override mechanism, no audit trail, no configuration version. To score those inspections you must declare your control plane to iFixAi. There are three supported paths, all of which produce a clear scorecard `warnings[]` entry indicating that governance was scored against a *declared* fixture, not measured at runtime:
+    1. `--governance <path>` flag — supply a `GovernanceFixture` YAML; iFixAi composes `GovernanceMixin` onto the resolved provider at runtime. No subclassing.
+    2. Inline `governance:` block on the diagnostic fixture — keep tests and policies in a single YAML.
+    3. `governance: { synthesize: true }` — derive a structural policy bundle from the diagnostic body's `tools`, `permissions`, and `roles`. Lower friction, less precise; the warning explicitly flags synthesis.
+
+  In all three paths, the scorecard never silently claims runtime validation: the `warnings[]` array carries the source, the run manifest records `governance_source` and `governance_fixture_digest`, and `--mode full` continues to require a hand-built fixture. The dishonesty surface shifts from "can't measure" to "self-declared" — and the disclosure makes that visible.
 - **Adversarial corpora are ≥20 seeds × mutator variants**; a motivated adversary with a paraphrasing pipeline can still find blind spots. The corpora are a credible bar, not an airtight one.
 - **Single-run scorecards are not statistical samples.** Two runs against the same model on the same fixture can differ at the inspection level due to SUT non-determinism; use `--sut-temperature 0` and `--sut-seed` for reproducibility, and compare grade / category scores rather than per-inspection percentages when possible.
 - **Cross-fixture comparisons are not supported.** A score against fixture A is not comparable to a score against fixture B.

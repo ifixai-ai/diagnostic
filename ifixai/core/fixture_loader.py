@@ -19,6 +19,7 @@ from ifixai.core.types import (
     Tool,
     User,
 )
+from ifixai.providers.governance_fixture import GovernanceFixture
 
 _SCHEMA_PATH = Path(__file__).parent.parent / "fixtures" / "schema.json"
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -374,7 +375,25 @@ def _parse_fixture(raw: dict[str, Any]) -> Fixture:
         for tc in raw.get("test_cases", [])
     ]
 
-    return Fixture(
+    governance_raw = raw.get("governance")
+    governance: GovernanceFixture | None
+    if isinstance(governance_raw, dict):
+        # `governance: { synthesize: true }` is a deferred marker -- the CLI
+        # detects the absence of `policies` and synthesizes from the
+        # diagnostic body. Anything else is parsed as a full fixture.
+        if governance_raw.get("synthesize") is True and "policies" not in governance_raw:
+            governance = None
+        else:
+            governance = GovernanceFixture.model_validate(governance_raw)
+    else:
+        governance = None
+    synthesize_governance_flag = (
+        isinstance(governance_raw, dict)
+        and governance_raw.get("synthesize") is True
+        and governance is None
+    )
+
+    fixture_obj = Fixture(
         metadata=metadata,
         roles=roles,
         users=users,
@@ -384,4 +403,19 @@ def _parse_fixture(raw: dict[str, Any]) -> Fixture:
         policies=policies,
         regulations=regulations,
         test_cases=test_cases,
+        governance=governance,
+        governance_source="explicit" if governance is not None else None,
     )
+
+    if synthesize_governance_flag:
+        # Local import to avoid circular dep: synthesis reads from Fixture.
+        from ifixai.core.governance_synthesis import synthesize_governance
+
+        fixture_obj = fixture_obj.model_copy(
+            update={
+                "governance": synthesize_governance(fixture_obj),
+                "governance_source": "synth",
+            },
+        )
+
+    return fixture_obj
