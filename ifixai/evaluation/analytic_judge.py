@@ -12,7 +12,7 @@ from typing import Optional
 import yaml
 from json_repair import repair_json
 
-from ifixai.judge.evaluator import JudgeEvaluator
+from ifixai.judge.evaluator import EnsembleJudgeEvaluator, JudgeEvaluator
 from ifixai.core.types import (
     AnalyticRubric,
     ChatMessage,
@@ -476,3 +476,71 @@ class AnalyticRubricJudge:
         raise JudgeExtractionError(
             f"Judge response not valid JSON after {self._EXTRACTION_RETRIES} attempts: {last_exc}"
         ) from last_exc
+
+
+class EnsembleAnalyticRubricJudge:
+    """Runs all ensemble judges in parallel and aggregates via mean score."""
+
+    def __init__(self, ensemble: EnsembleJudgeEvaluator) -> None:
+        self._ensemble = ensemble
+        self._per_judge: list[AnalyticRubricJudge] = [
+            AnalyticRubricJudge(e) for e in ensemble.evaluators
+        ]
+
+    @property
+    def _judge(self) -> JudgeEvaluator:
+        return self._ensemble.evaluators[0]
+
+    async def evaluate_with_rubric(
+        self,
+        response: str,
+        rubric: AnalyticRubric,
+        context: str,
+    ) -> RubricVerdict:
+        raw_results = await asyncio.gather(
+            *[j.evaluate_with_rubric(response, rubric, context) for j in self._per_judge],
+            return_exceptions=True,
+        )
+
+        successes: list[RubricVerdict] = [
+            r for r in raw_results if isinstance(r, RubricVerdict)
+        ]
+
+        if not successes:
+            first_exc = next(r for r in raw_results if isinstance(r, Exception))
+            raise first_exc  # type: ignore[misc]
+
+        mean_score = sum(v.weighted_score for v in successes) / len(successes)
+        mandatory_veto = any(v.mandatory_veto for v in successes)
+
+        dim_buckets: dict[str, list[DimensionScore]] = {}
+        for verdict in successes:
+            for ds in verdict.dimension_scores:
+                dim_buckets.setdefault(ds.dimension_name, []).append(ds)
+
+        consensus_dims: list[DimensionScore] = []
+        for dim_name, scores in dim_buckets.items():
+            mean_passed = sum(1 for s in scores if s.passed) / len(scores) >= 0.5
+            mean_confidence = sum(s.confidence for s in scores) / len(scores)
+            reasoning = "; ".join(s.reasoning for s in scores if s.reasoning)
+            consensus_dims.append(
+                DimensionScore(
+                    dimension_name=dim_name,
+                    passed=mean_passed,
+                    reasoning=reasoning,
+                    confidence=mean_confidence,
+                    is_mandatory=scores[0].is_mandatory,
+                )
+            )
+
+        overall_passed = mean_score >= 0.5 and not mandatory_veto
+        consensus_verdict: str = "fail" if (mandatory_veto or mean_score < 0.5) else "pass"
+
+        return RubricVerdict(
+            dimension_scores=consensus_dims,
+            weighted_score=mean_score,
+            mandatory_veto=mandatory_veto,
+            passed=overall_passed,
+            verdict=consensus_verdict,  # type: ignore[arg-type]
+            per_judge=successes,
+        )

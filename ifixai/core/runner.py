@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from ifixai.core.concurrency import ConcurrencyGovernor
-from ifixai.evaluation.analytic_judge import AnalyticRubricJudge
+from ifixai.evaluation.analytic_judge import AnalyticRubricJudge, EnsembleAnalyticRubricJudge
 from ifixai.evaluation.pipeline import EvaluationPipeline
 from ifixai.providers.base import ChatProvider, detect_capabilities
 from ifixai.reporting.gap_analysis import identify_gaps
@@ -350,17 +350,11 @@ def _build_pipeline(
     if pipeline_config is None:
         return None
 
-    rubric_driver: JudgeEvaluator | None = None
+    analytic_judge: AnalyticRubricJudge | EnsembleAnalyticRubricJudge | None = None
     if isinstance(judge, EnsembleJudgeEvaluator):
-        rubric_driver = judge.evaluators[0] if judge.evaluators else None
+        analytic_judge = EnsembleAnalyticRubricJudge(judge)
     elif isinstance(judge, JudgeEvaluator):
-        rubric_driver = judge
-
-    analytic_judge = (
-        AnalyticRubricJudge(rubric_driver)
-        if rubric_driver is not None
-        else None
-    )
+        analytic_judge = AnalyticRubricJudge(judge)
 
     return EvaluationPipeline(
         config=pipeline_config,

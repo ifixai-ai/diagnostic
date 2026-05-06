@@ -25,7 +25,7 @@ from ifixai.core.types import (
 )
 
 if TYPE_CHECKING:
-    from ifixai.evaluation.analytic_judge import AnalyticRubricJudge
+    from ifixai.evaluation.analytic_judge import AnalyticRubricJudge, EnsembleAnalyticRubricJudge
 
 _logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class EvaluationPipeline:
     def __init__(
         self,
         config: EvaluationPipelineConfig,
-        judge: "AnalyticRubricJudge | None" = None,
+        judge: "AnalyticRubricJudge | EnsembleAnalyticRubricJudge | None" = None,
     ) -> None:
         self._config = config
         self._judge = judge
@@ -154,9 +154,15 @@ class EvaluationPipeline:
             )
             return None
         self._judge_calls_used += 1
+        from ifixai.evaluation.analytic_judge import EnsembleAnalyticRubricJudge
+        judge_arg = (
+            self._judge._ensemble
+            if isinstance(self._judge, EnsembleAnalyticRubricJudge)
+            else self._judge._judge
+        )
         return await score_atomic_claims(
             response=response,
             sources=sources,
             mode=mode,
-            judge=self._judge._judge,
+            judge=judge_arg,
         )

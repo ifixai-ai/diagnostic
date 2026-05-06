@@ -348,6 +348,7 @@ class RubricVerdict(BaseModel):
     mandatory_veto: bool = False
     passed: bool = False
     verdict: Literal["pass", "partial", "fail"] = "fail"
+    per_judge: list["RubricVerdict"] = Field(default_factory=list)
 
 
 class ReferenceResponse(BaseModel):
