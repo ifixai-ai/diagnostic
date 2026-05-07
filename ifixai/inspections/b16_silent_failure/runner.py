@@ -59,7 +59,9 @@ class B16SilentFailure(BaseTest):
             )
             evidence.extend(step_evidence)
 
-        high_risk_tools = [t for t in fixture.tools if t.risk_level == "high"]
+        high_risk_tools = [
+            t for t in fixture.tools if t.risk_level in ("high", "critical")
+        ]
         for user in fixture.users:
             for tool in high_risk_tools:
                 template_vars = {

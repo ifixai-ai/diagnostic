@@ -48,7 +48,8 @@ from ifixai.harness.registry import SPEC_BY_ID
 from ifixai.utils.fixture_digest import compute_fixture_digest
 from ifixai.utils.rubric_digest import compute_rubric_digests_for_tests_layout
 from ifixai.core.grounding import GroundingMode, compose_system_prompt
-from ifixai.providers.resolver import resolve_provider
+from ifixai.providers.governance_fixture import GovernanceFixture
+from ifixai.providers.resolver import resolve_provider, wrap_with_governance
 from ifixai.quick_build import (
     collect_quick_build_context,
     fixture_to_yaml,
@@ -68,6 +69,26 @@ DEFAULT_CONCURRENCY = 5
 CONCURRENCY_ENV_VAR = "IFIXAI_CONCURRENCY"
 
 _TESTS_DIR: Path = Path(__file__).resolve().parent.parent / "inspections"
+
+
+_GOVERNANCE_SOURCE_WARNINGS: dict[str, str] = {
+    "wrap": (
+        "governance scored from declared fixture (--governance), not measured "
+        "at runtime"
+    ),
+    "explicit_fixture": (
+        "governance scored from declared fixture (governance: block), not "
+        "measured at runtime"
+    ),
+    "synth": (
+        "governance synthesized from diagnostic fixture (synthesize: true); "
+        "not validated against runtime control plane"
+    ),
+}
+
+
+def _governance_source_warning(source: str) -> str | None:
+    return _GOVERNANCE_SOURCE_WARNINGS.get(source)
 
 PROVIDER_CHOICES = [
     "mock",
@@ -159,6 +180,20 @@ def _print_concurrency_banner(resolved: int) -> None:
     "-f",
     default=None,
     help="Fixture name or YAML path. If omitted, ifixai auto-discovers or asks.",
+)
+@click.option(
+    "--governance",
+    "governance_path",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help=(
+        "Path to a GovernanceFixture YAML. When supplied, ifixai composes "
+        "GovernanceMixin onto the resolved provider so all structural "
+        "inspections score against your declared policies. Vanilla LLMs "
+        "without this flag (or an embedded `governance:` block on the "
+        "diagnostic fixture) will continue to emit insufficient_evidence on "
+        "governance inspections -- by design."
+    ),
 )
 @click.option(
     "--endpoint",
@@ -363,6 +398,16 @@ def _print_concurrency_banner(resolved: int) -> None:
     "variant expansions of the committed seed corpus.",
 )
 @click.option(
+    "--b28-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B28_SEED",
+    show_default=False,
+    help="Seed for B28 RAG context integrity corpus mutator. Default: "
+    "20260422 (deterministic across runs). Override to rotate through "
+    "different variant expansions of the committed seed corpus.",
+)
+@click.option(
     "--b30-seed",
     type=int,
     default=None,
@@ -404,6 +449,7 @@ def run(
     provider: str | None,
     api_key: str | None,
     fixture: str,
+    governance_path: str | None,
     endpoint: str | None,
     model: str | None,
     system_prompt: str | None,
@@ -428,6 +474,7 @@ def run(
     no_parallel: bool,
     b12_seed: int | None,
     b14_seed: int | None,
+    b28_seed: int | None,
     b30_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
@@ -586,6 +633,30 @@ def run(
     click.echo(click.style("Testing connection...", bold=True))
 
     resolved_provider = resolve_provider(provider)
+    governance_source: str = "runtime"
+    if governance_path is not None:
+        if (provider or "").lower() == "mock":
+            click.echo(
+                click.style(
+                    "Error: --governance is incompatible with --provider mock; "
+                    "the mock provider already loads its governance from "
+                    "fixtures/governance/mock.yaml.",
+                    fg="red",
+                )
+            )
+            sys.exit(1)
+        governance_fixture = GovernanceFixture.load(governance_path)
+        resolved_provider = wrap_with_governance(
+            resolved_provider, governance_fixture
+        )
+        governance_source = "wrap"
+        click.echo(
+            click.style(
+                f"Governance: wrapped {provider} with policies from "
+                f"{governance_path} (version={governance_fixture.version}).",
+                fg="cyan",
+            )
+        )
     test_config = ProviderConfig(
         provider=provider,
         endpoint=endpoint,
@@ -819,6 +890,7 @@ def run(
             judge_max_calls=judge_budget if judge_budget > 0 else 0,
             b12_seed=b12_seed if b12_seed is not None else 20260422,
             b14_seed=b14_seed if b14_seed is not None else 20260422,
+            b28_seed=b28_seed if b28_seed is not None else 20260422,
             b30_seed=b30_seed if b30_seed is not None else 20260422,
         )
 
@@ -840,6 +912,28 @@ def run(
 
     grounding_mode = GroundingMode(grounding.lower())
     fixture_obj_for_grounding = load_fixture(fixture)
+
+    # Governance precedence: --governance flag (already wrapped above) wins.
+    # Otherwise an embedded `governance:` block on the diagnostic fixture
+    # (explicit or synth via `synthesize: true`) is composed onto the
+    # provider here. Vanilla path leaves `governance_source == "runtime"`
+    # so insufficient_evidence on governance inspections stays honest.
+    if governance_source == "runtime" and fixture_obj_for_grounding.governance is not None:
+        resolved_provider = wrap_with_governance(
+            resolved_provider, fixture_obj_for_grounding.governance,
+        )
+        embedded_source = fixture_obj_for_grounding.governance_source or "explicit"
+        governance_source = (
+            "synth" if embedded_source == "synth" else "explicit_fixture"
+        )
+        click.echo(
+            click.style(
+                f"Governance: composed from fixture (source={embedded_source}, "
+                f"version={fixture_obj_for_grounding.governance.version}).",
+                fg="cyan",
+            )
+        )
+
     effective_system_prompt = compose_system_prompt(
         grounding_mode, fixture_obj_for_grounding, system_prompt,
     )
@@ -876,6 +970,10 @@ def run(
 
     if result is None:
         sys.exit(1)
+
+    governance_warning = _governance_source_warning(governance_source)
+    if governance_warning is not None and governance_warning not in result.warnings:
+        result.warnings.append(governance_warning)
 
     _print_category_summary(result)
 
@@ -942,6 +1040,10 @@ def run(
             version="auto-paired",
             family=eval_mode_auto_selected_judge,
         )
+    governance_fixture_digest_value: str | None = None
+    if governance_path is not None:
+        governance_fixture_digest_value = compute_fixture_digest(governance_path)
+
     manifest = build_manifest(
         mode=run_mode,
         model_under_test=model_descriptor,
@@ -950,12 +1052,15 @@ def run(
         test_versions=test_versions,
         rubric_hashes=compute_rubric_digests_for_tests_layout(_TESTS_DIR),
         fixture_digest=compute_fixture_digest(resolved_fixture_path),
+        governance_fixture_digest=governance_fixture_digest_value,
+        governance_source=governance_source,
         mode_filter=(
             [test] if test else (["strategic"] if strategic else ["all"])
         ),
         judge_identity=judge_identity_descriptor,
         b12_seed=b12_seed if b12_seed is not None else 20260422,
         b14_seed=b14_seed if b14_seed is not None else 20260422,
+        b28_seed=b28_seed if b28_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))

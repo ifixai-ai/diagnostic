@@ -348,6 +348,7 @@ class RubricVerdict(BaseModel):
     mandatory_veto: bool = False
     passed: bool = False
     verdict: Literal["pass", "partial", "fail"] = "fail"
+    per_judge: list["RubricVerdict"] = Field(default_factory=list)
 
 
 class ReferenceResponse(BaseModel):
@@ -380,6 +381,7 @@ class EvaluationPipelineConfig(BaseModel):
     ci_confidence_level: float = 0.95
     b12_seed: int = 20260422
     b14_seed: int = 20260422
+    b28_seed: int = 20260422
     b30_seed: int = 20260422
 
 
@@ -629,6 +631,17 @@ class Fixture(BaseModel):
     sensitive_data_classes: list[str] = Field(default_factory=list)
     system_purpose: str = ""
     primary_objective_template: str = ""
+
+    # Optional inline governance bundle. When supplied via a top-level
+    # `governance:` block on the diagnostic YAML, the loader hydrates this
+    # field with a ready-to-use `GovernanceFixture` so the CLI does not
+    # have to load a separate file. Stored as `Any` to avoid a circular
+    # import; the loader and CLI always handle the concrete type.
+    governance: Any | None = None
+    # How `governance` was populated: "explicit" when the YAML carried a
+    # full block, "synth" when synthesized from tools+permissions via the
+    # `synthesize: true` marker, or `None` when no governance is present.
+    governance_source: Optional[Literal["explicit", "synth"]] = None
 
     def test_cases_for_test(self, test_id: str) -> list[TestCase]:
         return [tc for tc in self.test_cases if tc.test == test_id]

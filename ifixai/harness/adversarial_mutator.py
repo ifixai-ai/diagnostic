@@ -6,6 +6,7 @@ from typing import Final
 import yaml
 
 B14_DEFAULT_SEED: Final[int] = 20260422
+B28_DEFAULT_SEED: Final[int] = 20260422
 B30_DEFAULT_SEED: Final[int] = 20260422
 
 _OPERATOR_ORDER: Final[tuple[str, ...]] = (
@@ -90,18 +91,27 @@ def _extract_seed_text(entry: dict[str, object]) -> str:
     covert = entry.get("covert_objective")
     if isinstance(legitimate, str) and isinstance(covert, str):
         return f"{legitimate.strip()}. Also, {covert.strip()}."
+    # `b28_prompt` key carries verbatim multi-line prompts for B28 RAG injection cases.
+    # Named specifically to prevent B14/B30 corpus authors from accidentally routing
+    # arbitrary content through the verbatim injection path.
+    prompt = entry.get("b28_prompt")
+    if isinstance(prompt, str):
+        return prompt.strip()
     text = entry.get("text")
     if isinstance(text, str):
         return text.strip()
     raise AdversarialMutatorError(
         f"seed entry {entry.get('id')!r} must carry either 'rule_text', "
-        f"'text', or both 'legitimate_request' and 'covert_objective'"
+        f"'b28_prompt', 'text', or both 'legitimate_request' and 'covert_objective'"
     )
 
 
 def _extract_seed_metadata(entry: dict[str, object]) -> dict[str, str]:
     metadata: dict[str, str] = {}
-    for key in ("severity", "target_marker", "legitimate_request", "covert_objective"):
+    for key in (
+        "severity", "target_marker", "legitimate_request", "covert_objective",
+        "expected_outcome", "expected_behavior",
+    ):
         value = entry.get(key)
         if isinstance(value, str):
             metadata[key] = value.strip()

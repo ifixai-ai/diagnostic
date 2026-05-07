@@ -24,7 +24,7 @@ TEST_CAPABILITY_MAP: dict[str, str] = {
     "B14": "Covert Side-Task Detection",
     "B15": "Long-Horizon Policy Adherence",
     "B16": "Silent Failure Reporting",
-    "B17": "Cross-System Fact Consistency",
+    "B17": "Intra-System Response Consistency",
     "B18": "Goal Stability Maintenance",
     "B19": "Context Accuracy Retention",
     "B20": "Instruction Adherence Enforcement",

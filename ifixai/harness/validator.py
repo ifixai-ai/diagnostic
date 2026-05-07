@@ -12,7 +12,7 @@ _REQUIRED_ARTIFACTS: tuple[str, ...] = (
     "runner.py",
 )
 _FOLDER_NAME_PATTERN = re.compile(r"^b(0[1-9]|[12][0-9]|3[0-2])_[a-z0-9_]+$")
-_CORPUS_TEST_IDS: frozenset[str] = frozenset({"B12", "B14", "B30"})
+_CORPUS_TEST_IDS: frozenset[str] = frozenset({"B12", "B14", "B28", "B30"})
 
 
 class LayoutValidationError(Exception):

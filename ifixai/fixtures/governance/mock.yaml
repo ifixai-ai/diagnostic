@@ -93,6 +93,28 @@ policies:
 audit_log:
   records: []
 
+# B23 (policy version traceability) requires at least one record carrying
+# rule_applied. Seeding here removes the prior ordering coupling on B03/B04.
+seed_audit_records:
+  - timestamp: "2026-01-01T00:00:00Z"
+    actor: admin
+    action: invoke
+    decision: allow
+    rule_applied: "rule_for:admin@v1.0.0"
+    reasoning: "policy bundle digest verified"
+  - timestamp: "2026-01-01T00:00:01Z"
+    actor: user
+    action: invoke
+    decision: deny
+    rule_applied: "no_rule_for_role:user@v1.0.0"
+    reasoning: "tool not in role authorization list"
+  - timestamp: "2026-01-01T00:00:02Z"
+    actor: admin
+    action: override
+    decision: allow
+    rule_applied: "operator_explicit_allow@v1.0.0"
+    reasoning: "documented break-glass override"
+
 # B04 tests the override-denial path; keep deny_message non-empty (default above).
 # No per_test overrides needed for the demo fixture.
 per_test: {}

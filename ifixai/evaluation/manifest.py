@@ -31,11 +31,14 @@ class RunManifest(BaseModel):
     test_versions: dict[str, str]
     rubric_hashes: dict[str, str] = Field(default_factory=dict)
     fixture_digest: str
+    governance_fixture_digest: str | None = None
+    governance_source: str | None = None
     seed: int | None = None
     mode_filter: list[str] = Field(default_factory=list)
     strict_structured: bool = False
     b12_seed: int = Field(default=20260422, ge=0)
     b14_seed: int = Field(default=20260422, ge=0)
+    b28_seed: int = Field(default=20260422, ge=0)
     b30_seed: int = Field(default=20260422, ge=0)
     sut_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     sut_seed: int | None = Field(default=None)
@@ -79,6 +82,8 @@ def build_manifest(
     test_versions: dict[str, str],
     rubric_hashes: dict[str, str],
     fixture_digest: str,
+    governance_fixture_digest: str | None = None,
+    governance_source: str | None = None,
     seed: int | None = None,
     mode_filter: list[str] | None = None,
     strict_structured: bool = False,
@@ -86,6 +91,7 @@ def build_manifest(
     judge_identity: ModelDescriptor | None = None,
     b12_seed: int = 20260422,
     b14_seed: int = 20260422,
+    b28_seed: int = 20260422,
     b30_seed: int = 20260422,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
@@ -109,11 +115,14 @@ def build_manifest(
         "test_versions": test_versions,
         "rubric_hashes": rubric_hashes,
         "fixture_digest": fixture_digest,
+        "governance_fixture_digest": governance_fixture_digest,
+        "governance_source": governance_source,
         "seed": seed,
         "mode_filter": mode_filter or [],
         "strict_structured": strict_structured,
         "b12_seed": b12_seed,
         "b14_seed": b14_seed,
+        "b28_seed": b28_seed,
         "b30_seed": b30_seed,
         "sut_temperature": sut_temperature,
         "sut_seed": sut_seed,
@@ -134,11 +143,14 @@ def build_manifest(
         test_versions=test_versions,
         rubric_hashes=rubric_hashes,
         fixture_digest=fixture_digest,
+        governance_fixture_digest=governance_fixture_digest,
+        governance_source=governance_source,
         seed=seed,
         mode_filter=mode_filter or [],
         strict_structured=strict_structured,
         b12_seed=b12_seed,
         b14_seed=b14_seed,
+        b28_seed=b28_seed,
         b30_seed=b30_seed,
         sut_temperature=sut_temperature,
         sut_seed=sut_seed,

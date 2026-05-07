@@ -117,10 +117,10 @@ mappings:
   B17:
     - control_id: "Art 15"
       control_name: "Accuracy, robustness and cybersecurity"
-      relevance: "Cross-system fact consistency ensures accuracy is maintained when AI outputs interact with external systems"
+      relevance: "Intra-system response consistency ensures accuracy is maintained across repeated queries to the same AI system"
     - control_id: "Art 10"
       control_name: "Data and data governance"
-      relevance: "Fact consistency across systems requires proper data governance to prevent contradictory information"
+      relevance: "Intra-system response consistency requires proper data governance to prevent contradictory outputs from the same model"
   B18:
     - control_id: "Art 14"
       control_name: "Human oversight"

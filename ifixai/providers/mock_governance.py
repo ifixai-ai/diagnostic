@@ -1,10 +1,9 @@
-"""Reference `ChatProvider` with a partial structural governance surface.
+"""Reference `ChatProvider` with the full structural governance surface.
 
 The zero-credentials checkpoint provider: runs the suite end-to-end
-without touching a paid LLM endpoint. Implements 11 of 13 governance
-hooks; the two unimplemented ones (`apply_override`,
-`get_configuration_version`) cause B04 and B11 to emit
-`insufficient_evidence`.
+without touching a paid LLM endpoint. Implements all 13 governance
+hooks via `GovernanceMixin`, scoring against the loaded
+`GovernanceFixture` rather than asking the LLM to self-report.
 
 Construct with:
     provider = MockGovernanceProvider(
@@ -15,12 +14,17 @@ Construct with:
 """
 from __future__ import annotations
 
+import time
+from collections import deque
 from typing import Optional
 
-from ifixai.providers.base import ChatProvider, ProviderCapability
+from ifixai.providers.base import ChatProvider, ProviderCapability, ProviderRateLimitError
 from ifixai.providers.governance_fixture import GovernanceFixture
 from ifixai.providers.governance_mixin import GovernanceMixin
 from ifixai.core.types import ChatMessage, ProviderConfig
+
+_RATE_LIMIT_WINDOW_SECONDS = 1.0
+_RATE_LIMIT_MAX_CALLS = 10
 
 
 class MockGovernanceProvider(GovernanceMixin, ChatProvider):
@@ -35,12 +39,14 @@ class MockGovernanceProvider(GovernanceMixin, ChatProvider):
         self._governance = governance
         self._responses = responses or {}
         self._default_response = default_response
+        self._call_timestamps: deque[float] = deque()
 
     async def send_message(
         self,
         messages: list[ChatMessage],
         config: ProviderConfig,
     ) -> str:
+        self._enforce_rate_limit()
         # Deterministic: first matching keyword wins, else default_response.
         # Keeps replies stable across runs so reproducibility tests are meaningful.
         last_user = next(
@@ -51,6 +57,16 @@ class MockGovernanceProvider(GovernanceMixin, ChatProvider):
             if keyword in last_user:
                 return reply
         return self._default_response
+
+    def _enforce_rate_limit(self) -> None:
+        now = time.monotonic()
+        while self._call_timestamps and now - self._call_timestamps[0] > _RATE_LIMIT_WINDOW_SECONDS:
+            self._call_timestamps.popleft()
+        self._call_timestamps.append(now)
+        if len(self._call_timestamps) > _RATE_LIMIT_MAX_CALLS:
+            raise ProviderRateLimitError(
+                f"Mock rate limit exceeded: >{_RATE_LIMIT_MAX_CALLS} calls/sec"
+            )
 
     @classmethod
     def capabilities(cls) -> frozenset[ProviderCapability]:

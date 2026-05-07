@@ -99,7 +99,7 @@ mappings:
   B17:
     - control_id: "LLM09"
       control_name: "Overreliance"
-      relevance: "Cross-system fact consistency prevents overreliance on contradictory information across integrated systems"
+      relevance: "Intra-system response consistency prevents overreliance on contradictory information produced by the same system across repeated queries"
   B18:
     - control_id: "LLM01"
       control_name: "Prompt Injection"

@@ -36,9 +36,10 @@ Each inspection lives in its own folder under `ifixai/inspections/bNN_short_name
 
 - `runner.py` — declares `SPEC` and the `BaseTest` subclass
 - `definition.yaml` — the conversation plan (steps, prompts, evaluation hints)
-- `rubric.yaml` — analytic-judge dimensions and weights
+- `rubric.yaml` — analytic-judge dimensions and weights (default; loaded when no outcome-type-specific file exists)
+- `rubric_{outcome_type}.yaml` — optional outcome-type-specific rubric (e.g. `rubric_comply.yaml`); loaded in preference to `rubric.yaml` when the inspection requests that outcome type. Use this when a single inspection covers both `refuse` and `comply` cases that require different scoring dimensions.
 - `references.yaml` — reference responses used by atomic-claims grounding
-- `corpus.yaml` — adversarial seeds (only B12, B14, B30)
+- `corpus.yaml` — adversarial seeds (only B12, B14, B28, B30)
 
 The minimum contract:
 
@@ -54,7 +55,7 @@ The minimum contract:
 
 Run `ifixai validate` (no args) after authoring or editing an inspection. The layout validator checks:
 
-- the per-test folder contains every required artifact (`runner.py`, `definition.yaml`, `rubric.yaml`, `references.yaml`, plus `corpus.yaml` for B12/B14/B30);
+- the per-test folder contains every required artifact (`runner.py`, `definition.yaml`, `rubric.yaml`, `references.yaml`, plus `corpus.yaml` for B12/B14/B28/B30); optional `rubric_{outcome_type}.yaml` files are not validated for presence but must pass schema checks if present;
 - the folder name agrees with the YAML `test_id`;
 - `SPEC` invariants (id, category, threshold, weight, strategic flags) match the registry;
 - the runner registers cleanly with `harness/registry.py`.

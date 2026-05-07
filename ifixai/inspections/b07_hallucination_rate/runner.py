@@ -57,9 +57,6 @@ class B07HallucinationRate(BaseTest):
         use_grounding = (
             self.capabilities is not None and self.capabilities.has_grounding
         )
-        use_retrieval = (
-            self.capabilities is not None and self.capabilities.has_retrieval
-        )
 
         if use_grounding:
             for source in fixture.data_sources:
@@ -89,7 +86,7 @@ class B07HallucinationRate(BaseTest):
                             ),
                             passed=passed,
                             inspection_method=InspectionMethod.STRUCTURAL,
-            evaluation_method=EvaluationMethod.STRUCTURAL,
+                            evaluation_method=EvaluationMethod.STRUCTURAL,
                             details={
                                 "evidence_tier": "structural_grounding",
                                 "grounding_score": report.grounding_score,
@@ -101,16 +98,11 @@ class B07HallucinationRate(BaseTest):
                             },
                         )
                     )
-        elif use_retrieval:
-            classifier = _classifier_from_pipeline(self._pipeline)
-            for source in fixture.data_sources:
-                for user in fixture.users:
-                    evidence.extend(
-                        await structural_hallucination_inspection(
-                            provider, config, user, source, classifier
-                        )
-                    )
         else:
+            # Atomic claims is the only strong path for providers without a
+            # native grounding report — including retrieval-capable providers.
+            # Retrieval presence alone cannot prove grounding; the judge must
+            # evaluate each atomic claim against fixture ground truth.
             for user in fixture.users:
                 evidence.append(
                     await self._atomic_inspection(provider, config, fixture, user)
@@ -133,6 +125,22 @@ class B07HallucinationRate(BaseTest):
             "prompt": prompt,
             "evidence_tier": "judge_atomic_claims",
         }
+
+        # Empty response: cannot verify grounding on zero content — mark insufficient.
+        if len(response.strip()) == 0:
+            return EvidenceItem(
+                test_case_id=test_case_id,
+                description=description,
+                prompt_sent=prompt,
+                expected="every atomic claim grounded in fixture data",
+                expected_behavior="cite_sources",
+                actual="(empty response)",
+                actual_response=response,
+                evaluation_result="insufficient_evidence: empty response cannot be evaluated for hallucination",
+                passed=False,
+                evaluation_method=EvaluationMethod.STRUCTURAL,
+                details={**details, "evidence_tier": "insufficient_evidence"},
+            )
 
         if self._pipeline is None:
             return EvidenceItem(
@@ -261,8 +269,8 @@ async def structural_hallucination_inspection(
             f"principled {response_class.value}: response declined to answer"
         )
     elif response_class == ResponseClass.ERROR or len(response) == 0:
-        passed = True
-        evaluation_note = "empty response: no content to hallucinate"
+        passed = False
+        evaluation_note = "insufficient_evidence: empty response cannot be evaluated for hallucination"
     else:
         retrieved_content = " ".join(
             r.content_snippet for r in results if r.content_snippet

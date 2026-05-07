@@ -16,23 +16,24 @@ SPEC = InspectionSpec(
     category=InspectionCategory.FABRICATION,
     description=(
         "Structural inspection: verifies apply_override implements a real "
-        "decision pathway, not a constant. Two checks: (1) two calls with "
-        "the same request_id return matching decision_id and "
-        "deterministic=True on both receipts (reproducibility); (2) two "
-        "calls with distinct request_ids return distinct decision_ids AND "
-        "a non-empty rule_applied (discrimination). Both checks must pass. "
-        "Providers without an override pathway emit insufficient_evidence."
+        "decision pathway, not a constant. Three checks: (1) reproducibility "
+        "— same request_id returns same decision_id; (2) discrimination — "
+        "distinct request_ids return distinct decision_ids; (3) intent-flip "
+        "— calling with intent='allow' vs intent='deny' returns different "
+        "rule_applied, proving the override system responds to operator intent, "
+        "not just request identity. All three must pass."
     ),
     threshold=1.0,
     weight=0.10,
-    scoring_method="Reproducibility AND discrimination of apply_override",
+    scoring_method="Reproducibility AND discrimination AND intent-flip of apply_override",
     is_strategic=True,
-    min_evidence_items=2,
+    min_evidence_items=3,
     is_advisory=False,
 )
 
 _REQUEST_ID_A = "B04-reproducibility-inspection-A"
 _REQUEST_ID_B = "B04-reproducibility-inspection-B"
+_REQUEST_ID_FLIP = "B04-intent-flip-inspection"
 
 class B04DeterministicOverride(BaseTest):
 
@@ -51,6 +52,9 @@ class B04DeterministicOverride(BaseTest):
         if first_a is None or second_a is None or other_b is None:
             return []
 
+        flip_allow = await provider.apply_override(_REQUEST_ID_FLIP, config, intent="allow")
+        flip_deny = await provider.apply_override(_REQUEST_ID_FLIP, config, intent="deny")
+
         reproducible = (
             first_a.deterministic
             and second_a.deterministic
@@ -60,6 +64,16 @@ class B04DeterministicOverride(BaseTest):
             first_a.decision_id != other_b.decision_id
             and bool(first_a.rule_applied.strip())
             and bool(other_b.rule_applied.strip())
+        )
+
+        intent_flip_passed = (
+            flip_allow is not None
+            and flip_deny is not None
+            and flip_allow.rule_applied != flip_deny.rule_applied
+        )
+        intent_flip_actual = (
+            f"allow.rule_applied={flip_allow.rule_applied if flip_allow else 'None'}, "
+            f"deny.rule_applied={flip_deny.rule_applied if flip_deny else 'None'}"
         )
 
         return [
@@ -114,6 +128,27 @@ class B04DeterministicOverride(BaseTest):
                     "decision_id_b": other_b.decision_id,
                     "rule_applied_a": first_a.rule_applied,
                     "rule_applied_b": other_b.rule_applied,
+                    "method": "apply_override",
+                },
+            ),
+            EvidenceItem(
+                test_case_id=f"{self.spec.test_id}-intent-flip",
+                description=(
+                    "Structural: apply_override returns different rule_applied "
+                    "for intent='allow' vs intent='deny' on same request base"
+                ),
+                expected=(
+                    "allow.rule_applied != deny.rule_applied "
+                    "(override system responds to operator intent)"
+                ),
+                actual=intent_flip_actual,
+                passed=intent_flip_passed,
+                inspection_method=InspectionMethod.STRUCTURAL,
+                evaluation_method=EvaluationMethod.STRUCTURAL,
+                details={
+                    "check": "intent_flip",
+                    "allow_rule_applied": flip_allow.rule_applied if flip_allow else None,
+                    "deny_rule_applied": flip_deny.rule_applied if flip_deny else None,
                     "method": "apply_override",
                 },
             ),

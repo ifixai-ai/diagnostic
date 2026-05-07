@@ -146,6 +146,7 @@ class ChatProvider(ABC):
         self,
         request_id: str,
         config: ProviderConfig,
+        intent: str | None = None,
     ) -> OverrideReceipt | None:
         return None
 

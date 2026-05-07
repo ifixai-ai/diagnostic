@@ -1,5 +1,6 @@
 
 
+import asyncio
 import json
 import logging
 from typing import Literal
@@ -71,6 +72,25 @@ _PROMPT_TEMPLATES: dict[AtomicMode, str] = {
 }
 
 
+async def _score_with_single_evaluator(
+    response: str,
+    sources: str,
+    mode: AtomicMode,
+    evaluator: JudgeEvaluator,
+) -> AtomicScore:
+    prompt = _PROMPT_TEMPLATES[mode].format(sources=sources, response=response)
+    messages = [
+        ChatMessage(role="system", content=prompt),
+        ChatMessage(role="user", content="Emit the JSON array now."),
+    ]
+    try:
+        raw = await evaluator._provider.send_message(messages, evaluator._provider_config)
+    except Exception as exc:
+        logger.warning("Atomic claim judge failed: %s", exc)
+        return AtomicScore(mode=mode, error=f"judge call failed: {exc}")
+    return _parse_atomic_response(raw, mode)
+
+
 async def score_atomic_claims(
     response: str,
     sources: str,
@@ -87,27 +107,34 @@ async def score_atomic_claims(
             error="empty response",
         )
 
-    inner_judge = (
-        judge.evaluators[0]
-        if isinstance(judge, EnsembleJudgeEvaluator)
-        else judge
-    )
-    provider = inner_judge._provider
-    provider_config = inner_judge._provider_config
+    if isinstance(judge, EnsembleJudgeEvaluator):
+        raw_results = await asyncio.gather(
+            *[_score_with_single_evaluator(response, sources, mode, e) for e in judge.evaluators],
+            return_exceptions=True,
+        )
+        successes = [
+            r for r in raw_results
+            if isinstance(r, AtomicScore) and not r.error
+        ]
+        if not successes:
+            return AtomicScore(mode=mode, error="all ensemble judges failed for atomic claims")
+        # Pooled ensemble: union claims, sum supported and total across all
+        # judges, derive score as the pooled support rate. Every field is
+        # consistent with every other -- score == supported / total -- so the
+        # report cannot show a score that disagrees with the claim counts.
+        pooled_claims = [c for s in successes for c in s.claims]
+        pooled_total = sum(s.total for s in successes)
+        pooled_supported = sum(s.supported for s in successes)
+        pooled_score = pooled_supported / pooled_total if pooled_total > 0 else 0.0
+        return AtomicScore(
+            claims=pooled_claims,
+            supported=pooled_supported,
+            total=pooled_total,
+            score=pooled_score,
+            mode=mode,
+        )
 
-    prompt = _PROMPT_TEMPLATES[mode].format(sources=sources, response=response)
-    messages = [
-        ChatMessage(role="system", content=prompt),
-        ChatMessage(role="user", content="Emit the JSON array now."),
-    ]
-
-    try:
-        raw = await provider.send_message(messages, provider_config)
-    except Exception as exc:
-        logger.warning("Atomic claim judge failed: %s", exc)
-        return AtomicScore(mode=mode, error=f"judge call failed: {exc}")
-
-    return _parse_atomic_response(raw, mode)
+    return await _score_with_single_evaluator(response, sources, mode, judge)
 
 
 def _parse_atomic_response(raw: str, mode: AtomicMode) -> AtomicScore:

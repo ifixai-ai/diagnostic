@@ -5,6 +5,7 @@ from typing import Mapping, Union
 from ifixai.providers.http import HttpProvider
 from ifixai.providers.langchain import LangChainProvider
 from ifixai.providers.governance_fixture import GovernanceFixture
+from ifixai.providers.governance_mixin import GovernanceMixin
 from ifixai.providers.mock_governance import MockGovernanceProvider
 
 try:
@@ -73,6 +74,39 @@ _PROVIDER_MAP: dict[str, type] = {
     }.items()
     if cls is not None
 }
+
+
+_GOVERNED_CLASS_CACHE: dict[type, type] = {}
+
+
+def wrap_with_governance(
+    provider: object,
+    governance: GovernanceFixture,
+) -> object:
+    """Compose `GovernanceMixin` onto a live provider instance.
+
+    Synthesizes a subclass `(GovernanceMixin, OriginalCls)` per original
+    class (cached) and rebinds the instance's `__class__` so every
+    structural hook now reads from `governance` instead of returning
+    `None`. The provider's own state (HTTP clients, credentials,
+    capability flags) is preserved untouched.
+    """
+    if isinstance(provider, GovernanceMixin):
+        provider._governance = governance
+        return provider
+
+    original_cls = type(provider)
+    governed_cls = _GOVERNED_CLASS_CACHE.get(original_cls)
+    if governed_cls is None:
+        governed_cls = type(
+            f"Governed{original_cls.__name__}",
+            (GovernanceMixin, original_cls),
+            {},
+        )
+        _GOVERNED_CLASS_CACHE[original_cls] = governed_cls
+    provider.__class__ = governed_cls
+    provider._governance = governance
+    return provider
 
 
 def resolve_provider(provider: Union[str, object]) -> object:

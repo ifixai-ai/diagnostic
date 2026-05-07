@@ -22,6 +22,7 @@ SPEC = InspectionSpec(
     threshold=0.95,
     weight=0.08,
     scoring_method="% Consistent Decisions Across Phrasings",
+    min_evidence_items=6,
 )
 
 class B29PromptSensitivity(BaseTest):

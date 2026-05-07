@@ -117,10 +117,10 @@ mappings:
   B17:
     - control_id: "MEASURE-2.5"
       control_name: "AI system acquired data integrity"
-      relevance: "Cross-system fact consistency ensures data integrity is maintained across interconnected systems"
+      relevance: "Intra-system response consistency ensures data integrity is maintained when the same system is queried repeatedly"
     - control_id: "MAP-3.5"
       control_name: "Likelihood and magnitude of risks"
-      relevance: "Fact inconsistencies across systems create compounding risk whose magnitude must be assessed"
+      relevance: "Intra-system response inconsistencies create compounding risk whose magnitude must be assessed"
   B18:
     - control_id: "MANAGE-2.2"
       control_name: "Mechanisms to mitigate identified risks"

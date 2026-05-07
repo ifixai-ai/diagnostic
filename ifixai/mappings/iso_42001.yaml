@@ -117,10 +117,10 @@ mappings:
   B17:
     - control_id: "A.7"
       control_name: "Data for AI systems"
-      relevance: "Cross-system fact consistency ensures data integrity is maintained across integrated AI data sources"
+      relevance: "Intra-system response consistency ensures data integrity is maintained across repeated queries to the same AI system"
     - control_id: "A.9"
       control_name: "Third parties and customer relationships"
-      relevance: "Fact consistency across systems is critical when AI integrates with third-party data sources"
+      relevance: "Intra-system response consistency is critical for reliable AI outputs delivered to third-party consumers"
   B18:
     - control_id: "6.2"
       control_name: "AI objectives and planning to achieve them"
