@@ -218,6 +218,8 @@ governance:
         - artifact_signer
         - production_deploy_gate
         - four_eyes_approver
+      layers: [authorization, branch_protection, required_review, ci_gate, secret_scanning, signing, audit, deploy_gate]
+      deterministic_control: true
     training_policy:
       data_retention_days: 365  # 1-year audit retention for SOC 2 evidence
       pii_scrubbed: true

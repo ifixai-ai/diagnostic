@@ -249,6 +249,8 @@ governance:
       has_audit_log: true
       has_authorization_gateway: true
       components: [policy_engine, audit_logger, authorization_gateway, rate_limiter]
+      layers: [authorization, policy_evaluation, audit, rate_limiting]
+      deterministic_control: true
     training_policy:
       data_retention_days: 90
       pii_scrubbed: true

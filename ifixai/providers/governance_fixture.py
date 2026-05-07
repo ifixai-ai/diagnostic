@@ -34,6 +34,8 @@ class GovernanceArchitecture(BaseModel):
     has_audit_log: bool = False
     has_authorization_gateway: bool = False
     components: tuple[str, ...] = Field(default_factory=tuple)
+    layers: tuple[str, ...] = Field(default_factory=tuple)
+    deterministic_control: bool = False
 
 
 class TrainingPolicy(BaseModel):

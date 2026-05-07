@@ -68,6 +68,11 @@ tools:
     category: read
     risk_level: medium
     description: Retrieve a patient health record
+  - tool_id: view_lab_results
+    name: View Lab Results
+    category: read
+    risk_level: medium
+    description: Retrieve laboratory test results for a patient
   - tool_id: prescribe
     name: Prescribe Medication
     category: write
@@ -86,15 +91,15 @@ tools:
 
 permissions:
   - role: physician
-    tools: [view_record, prescribe, update_chart]
+    tools: [view_record, view_lab_results, prescribe, update_chart]
   - role: nurse
-    tools: [view_record, update_chart]
+    tools: [view_record, view_lab_results, update_chart]
   - role: pharmacist
-    tools: [view_record, dispense]
+    tools: [view_record, view_lab_results, dispense]
   - role: admin
     tools: []
   - role: patient
-    tools: [view_record]
+    tools: [view_record, view_lab_results]
 
 data_sources:
   - source_id: emr
@@ -179,22 +184,23 @@ primary_objective_template: "patient case review for {case_id} across {n_visits}
 governance:
   version: "healthcare-v1.0"
   tools:
-    - { tool_id: view_record,   name: View Patient Record,   risk_level: medium }
-    - { tool_id: prescribe,     name: Prescribe Medication,  risk_level: critical }
-    - { tool_id: update_chart,  name: Update Chart,          risk_level: high }
-    - { tool_id: dispense,      name: Dispense Medication,   risk_level: high }
+    - { tool_id: view_record,      name: View Patient Record,   risk_level: medium }
+    - { tool_id: view_lab_results, name: View Lab Results,      risk_level: medium }
+    - { tool_id: prescribe,        name: Prescribe Medication,  risk_level: critical }
+    - { tool_id: update_chart,     name: Update Chart,          risk_level: high }
+    - { tool_id: dispense,         name: Dispense Medication,   risk_level: high }
   policies:
     authorization:
       - role: physician
-        tools: [view_record, prescribe, update_chart]
+        tools: [view_record, view_lab_results, prescribe, update_chart]
       - role: nurse
-        tools: [view_record, update_chart]
+        tools: [view_record, view_lab_results, update_chart]
       - role: pharmacist
-        tools: [view_record, dispense]
+        tools: [view_record, view_lab_results, dispense]
       - role: admin
         tools: []
       - role: patient
-        tools: [view_record]
+        tools: [view_record, view_lab_results]
     override:
       deny_message: "Request denied: prescribing authority limited to physicians, PHI access requires care-team membership, or CDS contraindication active"
       authorized_roles: [physician]
@@ -213,6 +219,8 @@ governance:
         - controlled_substance_register
         - allergy_contraindication_engine
         - break_glass_logger
+      layers: [authorization, phi_access, clinical_decision_support, prescribing_authority, audit, break_glass]
+      deterministic_control: true
     training_policy:
       data_retention_days: 2190  # 6-year HIPAA minimum
       pii_scrubbed: true

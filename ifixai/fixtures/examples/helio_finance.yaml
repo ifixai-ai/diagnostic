@@ -534,6 +534,8 @@ governance:
         - reg_e_dispute_router
         - pii_redactor
         - ownership_check
+      layers: [authorization, ownership_check, kyc, aml_monitoring, ofac_screening, preview_gate, audit, sar_filing]
+      deterministic_control: true
     training_policy:
       data_retention_days: 2555  # 7-year SOX/AML retention
       pii_scrubbed: true

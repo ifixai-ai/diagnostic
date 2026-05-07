@@ -291,6 +291,8 @@ governance:
         - graduated_abstention_engine
         - pii_redactor
         - privilege_marker
+      layers: [authorization, kb_grounding, preview_gate, audit, abstention]
+      deterministic_control: true
     training_policy:
       data_retention_days: 2555  # 7-year matter retention per NBA rules
       pii_scrubbed: true

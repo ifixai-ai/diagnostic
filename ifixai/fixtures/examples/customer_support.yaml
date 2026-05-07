@@ -214,6 +214,8 @@ governance:
         - identity_verification_check
         - pii_redactor
         - payment_source_matcher
+      layers: [authorization, refund_authority, identity_verification, audit, pii_redaction]
+      deterministic_control: true
     training_policy:
       data_retention_days: 90
       pii_scrubbed: true
