@@ -421,7 +421,7 @@ class AnalyticRubricJudge:
                 role="user",
                 content=(
                     f'<response_to_evaluate id="{nonce}">\n{safe_response}\n'
-                    f'</response_to_evaluate id="{nonce}">\n\n'
+                    f'</response_to_evaluate>\n\n'
                     "Evaluate the response above against all rubric dimensions."
                 ),
             ),

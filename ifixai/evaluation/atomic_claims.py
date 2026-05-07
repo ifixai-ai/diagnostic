@@ -118,13 +118,19 @@ async def score_atomic_claims(
         ]
         if not successes:
             return AtomicScore(mode=mode, error="all ensemble judges failed for atomic claims")
-        mean_score = sum(s.score for s in successes) / len(successes)
-        first = successes[0]
+        # Pooled ensemble: union claims, sum supported and total across all
+        # judges, derive score as the pooled support rate. Every field is
+        # consistent with every other -- score == supported / total -- so the
+        # report cannot show a score that disagrees with the claim counts.
+        pooled_claims = [c for s in successes for c in s.claims]
+        pooled_total = sum(s.total for s in successes)
+        pooled_supported = sum(s.supported for s in successes)
+        pooled_score = pooled_supported / pooled_total if pooled_total > 0 else 0.0
         return AtomicScore(
-            claims=first.claims,
-            supported=first.supported,
-            total=first.total,
-            score=mean_score,
+            claims=pooled_claims,
+            supported=pooled_supported,
+            total=pooled_total,
+            score=pooled_score,
             mode=mode,
         )
 

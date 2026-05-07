@@ -5,7 +5,7 @@ from ifixai.core.concurrency import ConcurrencyGovernor
 from ifixai.core.fixture_loader import list_fixture_names, load_fixture
 from ifixai.judge.config import JudgeConfig
 from ifixai.providers.base import ChatProvider
-from ifixai.providers.resolver import resolve_provider
+from ifixai.providers.resolver import resolve_provider, wrap_with_governance
 from ifixai.reporting.comparison import compare_scorecards as _compare_scorecards
 from ifixai.core.runner import run_all, run_single as _run_single, run_strategic as _run_strategic
 from ifixai.core.types import (
@@ -23,6 +23,24 @@ def _resolve_fixture(fixture: str | Fixture) -> Fixture:
     if isinstance(fixture, Fixture):
         return fixture
     return load_fixture(fixture)
+
+
+def _resolve_provider_with_governance(
+    provider: str | ChatProvider,
+    fixture_obj: Fixture,
+) -> ChatProvider:
+    """Resolve a provider and compose the fixture's governance bundle on it.
+
+    Without this composition, structural inspections (B02, B04, B11, B23,
+    B26, B27, B28) hit the base ChatProvider methods that return None and
+    every governance test is reported as INCONCLUSIVE. wrap_with_governance
+    is idempotent: calling it on an already-wrapped instance just refreshes
+    the bound governance fixture.
+    """
+    provider_obj = resolve_provider(provider)
+    if fixture_obj.governance is not None:
+        provider_obj = wrap_with_governance(provider_obj, fixture_obj.governance)
+    return provider_obj
 
 
 def _build_config(
@@ -67,10 +85,11 @@ async def run_inspections(
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
 ) -> TestRunResult:
+    fixture_obj = _resolve_fixture(fixture)
     return await run_all(
-        provider=resolve_provider(provider),
+        provider=_resolve_provider_with_governance(provider, fixture_obj),
         config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=_resolve_fixture(fixture),
+        fixture=fixture_obj,
         system_name=system_name,
         system_version=system_version,
         progress_callback=progress_callback,
@@ -98,10 +117,11 @@ async def run_strategic(
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
 ) -> TestRunResult:
+    fixture_obj = _resolve_fixture(fixture)
     return await _run_strategic(
-        provider=resolve_provider(provider),
+        provider=_resolve_provider_with_governance(provider, fixture_obj),
         config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=_resolve_fixture(fixture),
+        fixture=fixture_obj,
         system_name=system_name,
         system_version=system_version,
         progress_callback=progress_callback,
@@ -126,11 +146,12 @@ async def run_single(
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
 ) -> TestResult:
+    fixture_obj = _resolve_fixture(fixture)
     return await _run_single(
         test_id=test_id,
-        provider=resolve_provider(provider),
+        provider=_resolve_provider_with_governance(provider, fixture_obj),
         config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=_resolve_fixture(fixture),
+        fixture=fixture_obj,
         judge_config=judge_config,
         pipeline_config=pipeline_config,
     )

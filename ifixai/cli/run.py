@@ -44,7 +44,6 @@ from ifixai.evaluation.manifest import build_manifest, write_manifest
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
 from ifixai.core.fixture_loader import load_fixture, resolve_fixture_path
-from ifixai.core.governance_synthesis import synthesize_governance
 from ifixai.harness.registry import SPEC_BY_ID
 from ifixai.utils.fixture_digest import compute_fixture_digest
 from ifixai.utils.rubric_digest import compute_rubric_digests_for_tests_layout

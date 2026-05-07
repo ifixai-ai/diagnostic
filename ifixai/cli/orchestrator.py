@@ -1,9 +1,48 @@
+import io
 import os
 import sys
 import threading
 from collections import Counter
 
 import click
+
+
+def _enable_windows_vt_processing() -> bool:
+    """Turn on virtual-terminal processing on the Windows console.
+
+    The animated progress display uses ANSI cursor-up (`\\033[{n}A`) to
+    redraw inspection lines in place. Older Windows consoles print those
+    escapes literally, so each redraw stacks new lines instead of
+    overwriting and the user sees the same inspection name reprinted on
+    every spinner frame. Returns True when VT processing is on; False on
+    any failure (caller should fall back to the plain progress printer).
+    """
+    if sys.platform != "win32":
+        return True
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.windll.kernel32
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        invalid_handle_value = ctypes.c_void_p(-1).value
+        if handle in (0, invalid_handle_value):
+            return False
+
+        mode = wintypes.DWORD()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+
+        return bool(
+            kernel32.SetConsoleMode(
+                handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            )
+        )
+    except (OSError, AttributeError, ImportError):
+        return False
 
 from ifixai.api import run_inspections, run_single, run_strategic
 from ifixai.core.concurrency import ConcurrencyGovernor
@@ -221,7 +260,17 @@ _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇"
 
 
 class BenchmarkProgressDisplay:
-    """Live animated display: pre-prints all benchmarks then updates in-place."""
+    """Live animated display: pre-prints all benchmarks then updates in-place.
+
+    The display owns the terminal during the run. Any concurrent stdout or
+    stderr write from the inspection pipeline (httpx retries, asyncio
+    diagnostics, library warnings) would shift the cursor between spinner
+    frames and corrupt the in-place redraw, producing repeated rows for
+    the same inspection. To prevent that, `start()` swaps `sys.stdout` and
+    `sys.stderr` for an in-memory buffer; the display's own writes go to
+    a saved real-stdout reference. `stop()` restores the streams and
+    flushes the captured buffer below the display so nothing is lost.
+    """
 
     def __init__(self, tests: list[tuple[str, str]]) -> None:
         self._tests = tests  # [(test_id, name), ...]
@@ -230,11 +279,27 @@ class BenchmarkProgressDisplay:
         self._lock = threading.Lock()
         self._done = threading.Event()
         self._thread: threading.Thread | None = None
+        self._real_stdout = sys.stdout
+        self._real_stderr = sys.stderr
+        self._capture_buffer: io.StringIO | None = None
+        self._streams_swapped = False
 
     def start(self) -> None:
+        self._real_stdout = sys.stdout
+        self._real_stderr = sys.stderr
         for test_id, name in self._tests:
-            sys.stdout.write(f"  {_YELLOW}⠋{_RESET} {_DIM}{test_id}{_RESET} {name}\n")
-        sys.stdout.flush()
+            self._real_stdout.write(
+                f"  {_YELLOW}⠋{_RESET} {_DIM}{test_id}{_RESET} {name}\n"
+            )
+        self._real_stdout.flush()
+
+        # Redirect stray writes to a buffer so they cannot corrupt the
+        # cursor math between redraws. The buffer is replayed in stop().
+        self._capture_buffer = io.StringIO()
+        sys.stdout = self._capture_buffer
+        sys.stderr = self._capture_buffer
+        self._streams_swapped = True
+
         self._thread = threading.Thread(target=self._animate, daemon=True)
         self._thread.start()
 
@@ -247,6 +312,17 @@ class BenchmarkProgressDisplay:
         if self._thread:
             self._thread.join(timeout=2.0)
         self._redraw(final=True)
+
+        if self._streams_swapped:
+            sys.stdout = self._real_stdout
+            sys.stderr = self._real_stderr
+            self._streams_swapped = False
+            captured = self._capture_buffer.getvalue() if self._capture_buffer else ""
+            if captured.strip():
+                self._real_stderr.write("\n")
+                self._real_stderr.write(captured)
+                self._real_stderr.flush()
+            self._capture_buffer = None
 
     def _animate(self) -> None:
         while not self._done.wait(timeout=0.1):
@@ -290,10 +366,11 @@ class BenchmarkProgressDisplay:
         if n == 0:
             return
         lines = self._build_lines(final=final)
-        sys.stdout.write(f"\033[{n}A")
+        out = self._real_stdout
+        out.write(f"\033[{n}A")
         for line in lines:
-            sys.stdout.write(f"\r\033[K{line}\n")
-        sys.stdout.flush()
+            out.write(f"\r\033[K{line}\n")
+        out.flush()
 
 
 def _print_category_summary(result: TestRunResult) -> None:
@@ -391,7 +468,16 @@ async def execute_tests(
         click.echo(click.style(f"Fixture error: {exc}", fg="red"))
         return None
 
-    use_display = progress_callback is None and sys.stdout.isatty()
+    # Animated in-place display needs ANSI cursor escapes. On Windows,
+    # those are inert unless VT processing is enabled on the console
+    # handle; if it cannot be enabled, fall back to the plain printer
+    # so each inspection prints once on completion instead of stacking
+    # the same name on every spinner frame.
+    use_display = (
+        progress_callback is None
+        and sys.stdout.isatty()
+        and _enable_windows_vt_processing()
+    )
     display: BenchmarkProgressDisplay | None = None
 
     if use_display:

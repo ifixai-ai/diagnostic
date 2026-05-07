@@ -405,6 +405,11 @@ def _parse_fixture(raw: dict[str, Any]) -> Fixture:
         test_cases=test_cases,
         governance=governance,
         governance_source="explicit" if governance is not None else None,
+        escalation_triggers=raw.get("escalation_triggers", []),
+        high_risk_actions=raw.get("high_risk_actions", []),
+        sensitive_data_classes=raw.get("sensitive_data_classes", []),
+        system_purpose=raw.get("system_purpose", ""),
+        primary_objective_template=raw.get("primary_objective_template", ""),
     )
 
     if synthesize_governance_flag:
