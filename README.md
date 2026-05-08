@@ -365,12 +365,8 @@ order of friction (drop all three and the run scores 27/32, with
    friction, less precise; the scorecard records that the bundle was
    synthesized rather than measured.
 
-In all three cases the scorecard's `warnings` array carries a string
-indicating the source (`--governance`, `governance: block`, or
-`synthesize: true`) so a 32/32 result cannot misrepresent itself as
-runtime-validated. The run manifest also records `governance_source`
-and `governance_fixture_digest`. See
-[docs/methodology.md](docs/methodology.md) for the design discussion.
+See [docs/methodology.md](docs/methodology.md) for the design
+discussion and manifest fields.
 
 ## Supported Providers
 
