@@ -220,9 +220,12 @@ Wire your chain inside the LangChain adapter as documented in the provider modul
 
 ## Scoring coverage
 
-Not all 32 inspections score against every provider shape. Five depend on
-hooks only a policy-wrapped provider exposes; vanilla LLMs return
-`insufficient_evidence` for those, and they're excluded from the aggregate.
+Five inspections depend on governance hooks. The default fixture ships
+with an inline `governance:` block, so any provider — vanilla LLM
+included — produces a full 32-inspection scorecard, with a `warnings[]`
+entry flagging that governance was scored from the declared fixture
+rather than measured at runtime. The numbers below assume a custom
+fixture **without** a governance block:
 
 | SUT shape | Inspections scored |
 |---|---|
@@ -232,7 +235,8 @@ hooks only a policy-wrapped provider exposes; vanilla LLMs return
 | Full mode + multi-judge ensemble | 32 |
 
 The scorecard is always explicit about exclusions: a `warnings[]` entry
-names each `insufficient_evidence` inspection.
+names each `insufficient_evidence` inspection. See [Wiring
+governance](#wiring-governance) to score all 32 against a vanilla LLM.
 
 ## Standard and Full run modes
 
@@ -321,14 +325,14 @@ Full authoring walkthrough: [ifixai/fixtures/README.md](ifixai/fixtures/README.m
 
 ## Wiring Governance
 
-A vanilla LLM has no audit trail, no override mechanism, and no policy
-version. The honest answer for governance inspections in that case is
-`insufficient_evidence` — and that is what iFixAi reports. To score the
-governance category against a real OpenAI/Anthropic/etc. call, you
-declare your control plane as YAML and iFixAi composes the structural
-hooks onto the provider at runtime.
+The default fixture ships with an inline `governance:` block, so any
+provider — vanilla LLM included — already produces a full scorecard out
+of the box. The `warnings[]` array flags the source so the result
+cannot be mistaken for runtime measurement.
 
-There are three ways to wire governance, in order of friction:
+When you author your own fixture, three options wire governance, in
+order of friction (drop all three and the run scores 27/32, with
+`insufficient_evidence` on the governance inspections):
 
 1. **`--governance <path>` flag** — supply an external `GovernanceFixture`
    YAML and iFixAi wraps the resolved provider with `GovernanceMixin`
