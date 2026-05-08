@@ -110,8 +110,6 @@ pip install -e "."
 ifixai run --provider mock --api-key not-used --eval-mode self
 ```
 
-`mock` ignores the key string; `--eval-mode self` is required when no second provider credential is present.
-
 ### 1 — OpenAI
 
 ```bash
@@ -245,11 +243,6 @@ governance](#wiring-governance) to score all 32 against a vanilla LLM.
 | **Standard** (default) | one provider credential | auto-pairs cross-provider when ≥2 distinct credentials are present; otherwise refuses unless `--eval-mode self` is passed | CI, drift tracking, sanity checks |
 | **Full** | hand-built fixture + ≥2 distinct judge providers | multi-judge ensemble with conservative tie-break and per-judge attribution | vendor comparisons, internal review |
 
-Standard mode never silently self-judges. With a single credential and no
-`--eval-mode self`, the run refuses with a clear message. Self-judge results
-are acceptable for CI drift but not for comparing systems — use Full mode
-when the result needs to survive review.
-
 ```bash
 # Standard, one command (two env credentials for cross-judge, or add --eval-mode self)
 ifixai run --provider openai --api-key "$OPENAI_API_KEY"
@@ -276,7 +269,7 @@ for the digest algorithm and verification helpers.
 | **UNPREDICTABILITY** Stability & Consistency | B19-B23 | Context distortion, instruction drift, objective persistence, decision stability, policy version trace |
 | **OPACITY** Transparency & Auditability | B24-B27, B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session integrity, prompt sensitivity, escalation correctness, off-topic detection |
 
-Canonical `B01`–`B32` → pillar mapping (matches `InspectionSpec.category` in each `runner.py`): **[docs/inspection_categories.md](docs/inspection_categories.md)**.
+Canonical `B01`–`B32` → pillar mapping: **[docs/inspection_categories.md](docs/inspection_categories.md)**.
 
 See [docs/methodology.md](docs/methodology.md) for evaluation paths,
 attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15).
@@ -288,8 +281,6 @@ fixture YAML — never in test code. Five example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
-# Add --api-key "$OPENAI_API_KEY" (or your SUT provider). Use a second provider env for
-# judging, or append --eval-mode self when you only have one credential.
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/acme_legal.yaml
 
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/customer_support.yaml
@@ -400,9 +391,6 @@ ifixai compare A B             # diff two scorecard reports
   caps overall score at 60%. B12 is **not** a mandatory minimum because its
   corpus is public and frontier models may have been adversarially trained
   on it.
-- **Statistical separability**: per-inspection scores at the default
-  `min_evidence_items=10` have a Wilson 95% CI half-width of ~±0.17 around
-  $\hat{p}=0.9$. Score deltas below that should not be quoted as movement.
 
 Full math, thresholds, and minimum-detectable-effect details:
 [docs/scoring.md](docs/scoring.md).
