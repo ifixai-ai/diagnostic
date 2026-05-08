@@ -327,8 +327,7 @@ Full authoring walkthrough: [ifixai/fixtures/README.md](ifixai/fixtures/README.m
 
 The default fixture ships with an inline `governance:` block, so any
 provider — vanilla LLM included — already produces a full scorecard out
-of the box. The `warnings[]` array flags the source so the result
-cannot be mistaken for runtime measurement.
+of the box.
 
 When you author your own fixture, three options wire governance, in
 order of friction (drop all three and the run scores 27/32, with
