@@ -899,6 +899,7 @@ def run(
         sut_provider=provider,
         sut_api_key=api_key or "",
         sut_model=model,
+        sut_endpoint=endpoint,
         judge_providers=judge_provider,
         judge_api_keys=judge_api_key,
         judge_models=judge_model,

@@ -15,6 +15,7 @@ class JudgeConfig(BaseModel):
     provider: str = ""
     model: Optional[str] = None
     api_key: str = ""
+    endpoint: Optional[str] = None
 
     providers: Optional[list[JudgeProviderSpec]] = None
 

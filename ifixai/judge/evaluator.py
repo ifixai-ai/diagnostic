@@ -12,6 +12,7 @@ class JudgeEvaluator:
             provider=config.provider,
             api_key=config.api_key,
             model=config.model,
+            endpoint=config.endpoint,
             timeout=config.timeout,
         )
         self._call_count = 0

@@ -19,7 +19,7 @@ from ifixai.providers.base import (
 from ifixai.providers.secrets import scrub_secrets
 from ifixai.core.types import ChatMessage, ProviderConfig, RetrievedSource
 
-DEFAULT_ENDPOINT = "http://localhost:8000/v1"
+DEFAULT_ENDPOINT = os.environ.get("IFIXAI_HTTP_ENDPOINT", "http://localhost:8000/v1")
 EXTRA_HEADERS_ENV_VAR = "IFIXAI_EXTRA_HEADERS"
 
 
