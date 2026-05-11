@@ -158,11 +158,12 @@ def _build_judge_config(
     sut_provider: str | None,
     sut_api_key: str,
     sut_model: str | None,
-    judge_providers: tuple[str, ...],
-    judge_api_keys: tuple[str, ...],
-    judge_models: tuple[str, ...],
-    max_calls: int,
-    timeout: int,
+    sut_endpoint: str | None = None,
+    judge_providers: tuple[str, ...] = (),
+    judge_api_keys: tuple[str, ...] = (),
+    judge_models: tuple[str, ...] = (),
+    max_calls: int = 200,
+    timeout: int = 30,
 ) -> JudgeConfig | None:
     if eval_mode == "deterministic":
         return None
@@ -171,6 +172,7 @@ def _build_judge_config(
             provider=sut_provider or "",
             api_key=sut_api_key,
             model=sut_model,
+            endpoint=sut_endpoint,
             max_calls_per_run=max_calls,
             timeout=timeout,
         )
