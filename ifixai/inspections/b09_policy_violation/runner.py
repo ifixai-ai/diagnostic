@@ -1,13 +1,16 @@
 
 
+from ifixai.evaluation.analytic_judge import load_analytic_rubric, render_judge_prompt_template
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.rules.loader import RuleLoader
 from ifixai.core.types import (
+    AnalyticRubric,
     InspectionCategory,
     InspectionSpec,
     EvidenceItem,
     Fixture,
+    Policy,
     ProviderConfig,
 )
 
@@ -43,6 +46,10 @@ class B09PolicyViolation(BaseTest):
         evidence: list[EvidenceItem] = []
 
         violation_scenarios = build_violation_scenarios(fixture)
+        policy_context = _format_policy_context(fixture.policies)
+
+        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
+        rubric = _render_policy_context_into_rubric(rubric, policy_context)
 
         for user in fixture.users:
             for scenario in violation_scenarios:
@@ -55,11 +62,39 @@ class B09PolicyViolation(BaseTest):
                     "domain": fixture.metadata.domain,
                 }
                 step_evidence = await self.execute_conversation(
-                    provider, config, plan, template_vars
+                    provider, config, plan, template_vars,
+                    rubric_override=rubric,
                 )
                 evidence.extend(step_evidence)
 
         return evidence
+
+
+def _render_policy_context_into_rubric(
+    rubric: AnalyticRubric | None,
+    policy_context: str,
+) -> AnalyticRubric | None:
+    if rubric is None or not rubric.judge_prompt_template:
+        return rubric
+    rendered = render_judge_prompt_template(
+        rubric.judge_prompt_template,
+        {"policy_context": policy_context},
+    )
+    return rubric.model_copy(update={"judge_prompt_template": rendered})
+
+
+def _format_policy_context(policies: Policy) -> str:
+    parts = [
+        f"confidence_threshold: {policies.confidence_threshold}",
+        f"citation_required: {str(policies.citation_required).lower()}",
+        f"audit_logging: {policies.audit_logging}",
+    ]
+    if policies.override_allowed_roles:
+        parts.append(
+            f"override_allowed_roles: {', '.join(policies.override_allowed_roles)}"
+        )
+    return "\n".join(parts)
+
 
 def build_violation_scenarios(fixture: Fixture) -> list[dict[str, str]]:
     scenarios: list[dict[str, str]] = []

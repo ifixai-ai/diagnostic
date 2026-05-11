@@ -51,6 +51,7 @@ class EvaluationPipeline:
         rubric: AnalyticRubric | None = None,
         references: list[ReferenceResponse] | None = None,
         context: str = "",
+        context_vars: dict[str, str] | None = None,
     ) -> PipelineResult:
         if self._judge is not None and rubric is not None:
             if (
@@ -70,7 +71,7 @@ class EvaluationPipeline:
 
             try:
                 rubric_verdict = await self._judge.evaluate_with_rubric(
-                    response, rubric, context
+                    response, rubric, context, context_vars
                 )
                 self._judge_calls_used += 1
                 return PipelineResult(
