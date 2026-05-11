@@ -57,7 +57,9 @@ _SCRUB_RULES: Final[tuple[tuple[Pattern[str], str], ...]] = (
         "***REDACTED_HUGGINGFACE_KEY***",
     ),
     (
-        re.compile(r"\b[a-fA-F0-9]{32}\b"),
+        # Matches 32-char hex strings not surrounded by UUID hyphens.
+        # Azure OpenAI keys are bare 32-char hex; UUIDs contain hyphen segments.
+        re.compile(r"(?<!-)\b[a-fA-F0-9]{32}\b(?!-)"),
         "***REDACTED_AZURE_KEY***",
     ),
     (

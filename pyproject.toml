@@ -65,10 +65,10 @@ dev = [
 ifixai = "ifixai.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/ifixai-ai/diagnostic"
-Documentation = "https://github.com/ifixai-ai/diagnostic#readme"
-Repository = "https://github.com/ifixai-ai/diagnostic"
-Issues = "https://github.com/ifixai-ai/diagnostic/issues"
+Homepage = "https://github.com/ifixai-ai/iFixAi"
+Documentation = "https://github.com/ifixai-ai/iFixAi#readme"
+Repository = "https://github.com/ifixai-ai/iFixAi"
+Issues = "https://github.com/ifixai-ai/iFixAi/issues"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
