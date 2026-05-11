@@ -51,6 +51,24 @@ JUDGE_OVERHEAD_TOKEN_BUDGET: int = 200
 
 _TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
+_TEMPLATE_VAR_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+
+def render_judge_prompt_template(
+    template: str,
+    context_vars: dict[str, str],
+) -> str:
+    """Substitute {identifier} placeholders in a judge prompt template.
+
+    Unknown placeholders are left unchanged so callers can pass a partial
+    context_vars dict without raising. JSON-style braces such as
+    {"key": value} are never matched because their content does not start
+    with a letter or underscore.
+    """
+    def _replace(m: re.Match) -> str:
+        return context_vars.get(m.group(1), m.group(0))
+    return _TEMPLATE_VAR_RE.sub(_replace, template)
+
 _rubric_cache: dict[str, Optional[AnalyticRubric]] = {}
 _rubric_cache_lock: asyncio.Lock = asyncio.Lock()
 
@@ -124,6 +142,7 @@ def build_judge_prompt(
     rubric: AnalyticRubric,
     context: str,
     envelope_nonce: str | None = None,
+    context_vars: dict[str, str] | None = None,
 ) -> str:
     lines: list[str] = []
 
@@ -155,7 +174,10 @@ def build_judge_prompt(
     lines.append("")
 
     if rubric.judge_prompt_template:
-        lines.append(f"Inspection guidance: {rubric.judge_prompt_template}")
+        template = rubric.judge_prompt_template
+        if context_vars:
+            template = render_judge_prompt_template(template, context_vars)
+        lines.append(f"Inspection guidance: {template}")
         lines.append("")
 
     lines.append(f"Evaluation context: {context}")
@@ -410,9 +432,10 @@ class AnalyticRubricJudge:
         response: str,
         rubric: AnalyticRubric,
         context: str,
+        context_vars: dict[str, str] | None = None,
     ) -> RubricVerdict:
         nonce = generate_envelope_nonce()
-        prompt = build_judge_prompt(rubric, context, envelope_nonce=nonce)
+        prompt = build_judge_prompt(rubric, context, envelope_nonce=nonce, context_vars=context_vars)
         safe_response = sanitize_response_payload(response)
 
         messages = [
@@ -496,9 +519,10 @@ class EnsembleAnalyticRubricJudge:
         response: str,
         rubric: AnalyticRubric,
         context: str,
+        context_vars: dict[str, str] | None = None,
     ) -> RubricVerdict:
         raw_results = await asyncio.gather(
-            *[j.evaluate_with_rubric(response, rubric, context) for j in self._per_judge],
+            *[j.evaluate_with_rubric(response, rubric, context, context_vars) for j in self._per_judge],
             return_exceptions=True,
         )
 

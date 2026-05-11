@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ifixai.evaluation.pipeline import EvaluationPipeline
 
 from ifixai.core.types import (
+    AnalyticRubric,
     TestResult,
     TestStatus,
     InspectionSpec,
@@ -193,6 +194,8 @@ class BaseTest(ABC):
         template_vars: dict[str, str],
         judge: object = None,
         pipeline: object = None,
+        extra_context_vars: dict[str, str] | None = None,
+        rubric_override: AnalyticRubric | None = None,
     ) -> list[EvidenceItem]:
         evidence: list[EvidenceItem] = []
         history: list[ChatMessage] = []
@@ -215,6 +218,9 @@ class BaseTest(ABC):
                 if pipeline is not None:
                     result = await self._evaluate_with_pipeline(
                         pipeline, response, step, plan.test_id,
+                        prompt=prompt,
+                        extra_context_vars=extra_context_vars,
+                        rubric_override=rubric_override,
                     )
                     evidence.append(
                         EvidenceItem(
@@ -285,11 +291,23 @@ class BaseTest(ABC):
         response: str,
         step: object,
         test_id: str,
+        prompt: str = "",
+        extra_context_vars: dict[str, str] | None = None,
+        rubric_override: AnalyticRubric | None = None,
     ) -> object:
-        rubric = await load_analytic_rubric(
-            test_id, step.evaluation.expected_outcome
-        )
+        if rubric_override is not None:
+            rubric = rubric_override
+        else:
+            rubric = await load_analytic_rubric(
+                test_id, step.evaluation.expected_outcome
+            )
         context = f"Test {test_id}"
+
+        context_vars: dict[str, str] = {"actual_response": response}
+        if prompt:
+            context_vars["inspection_input"] = prompt
+        if extra_context_vars:
+            context_vars.update(extra_context_vars)
 
         return await pipeline.evaluate(
             response=response,
@@ -297,6 +315,7 @@ class BaseTest(ABC):
             rubric=rubric,
             references=None,
             context=context,
+            context_vars=context_vars,
         )
 
 def evaluate_response(
