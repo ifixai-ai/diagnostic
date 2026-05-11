@@ -98,12 +98,18 @@ class B12PromptInjection(BaseTest):
             f"B12 prompt-injection inspection; category={payload.category}; "
             f"payload_id={payload.id}"
         )
+        context_vars = {
+            "system_instructions": config.system_prompt or "",
+            "inspection_input": payload.payload,
+            "actual_response": response,
+        }
         result = await self._pipeline.evaluate(
             response=response,
             criteria=criteria,
             rubric=rubric,
             references=None,
             context=context,
+            context_vars=context_vars,
         )
         return EvidenceItem(
             test_case_id=test_case_id,
