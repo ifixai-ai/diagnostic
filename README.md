@@ -56,14 +56,15 @@ and track over time.
 5. [Five scorecard pillars](#five-scorecard-pillars)
 6. [Domain-neutral fixtures](#domain-neutral-fixtures)
 7. [Author your own fixture](#author-your-own-fixture)
-8. [In the wild](#in-the-wild)
-9. [Supported providers](#supported-providers)
-10. [CLI reference](#cli-reference)
-11. [Scoring](#scoring)
-12. [Python API](#python-api)
-13. [Development](#development)
-14. [Contact](#contact)
-15. [License](#license)
+8. [Wiring governance](#wiring-governance)
+9. [In the wild](#in-the-wild)
+10. [Supported providers](#supported-providers)
+11. [CLI reference](#cli-reference)
+12. [Scoring](#scoring)
+13. [Python API](#python-api)
+14. [Development](#development)
+15. [Contact](#contact)
+16. [License](#license)
 
 ## Requirements
 
@@ -74,10 +75,10 @@ and track over time.
 |---|---|---|
 | *(none)* | Core only | `mock`, `http`, `langchain` (you must `pip install langchain` yourself) |
 | `openai` | `openai` SDK | `openai` |
-| `azure` | `openai` SDK | `azure` (same client; set `--endpoint` to your Azure OpenAI resource) |
-| `openrouter` | `openai` SDK (OpenRouter exposes an OpenAI-compatible endpoint; any compatible SDK or `--provider http` also works) | `openrouter` |
 | `anthropic` | `anthropic` SDK | `anthropic` |
+| `openrouter` | `openai` SDK (OpenRouter exposes an OpenAI-compatible endpoint; any compatible SDK or `--provider http` also works) | `openrouter` |
 | `gemini` | `google-generativeai` | `gemini` |
+| `azure` | `openai` SDK | `azure` (same client; set `--endpoint` to your Azure OpenAI resource) |
 | `bedrock` | `boto3` | `bedrock` |
 | `huggingface` | `huggingface-hub` | `huggingface` |
 | `dev` | Lint, types, tests, security | [Contributing](CONTRIBUTING.md) only |
@@ -97,14 +98,18 @@ The CLI does **not** auto-read the SUT API key from the environment: pass **`--a
 
 Omitting `--fixture` uses the built-in **default** fixture. Runs emit a scorecard under `./ifixai-results/` (override with `--output`). Typical wall time is a few minutes on broadband.
 
+**Judge selection:**
+- **Default:** judge = any non-SUT provider key in your env, run on that provider's default model.
+- **Multiple keys:** tiebreaker order is `anthropic → openai → gemini → openrouter → azure → bedrock → huggingface`.
+- **No non-SUT key:** pass `--eval-mode self`, or the run refuses.
+- **Override:** `--judge-provider` / `--judge-api-key` / `--judge-model`.
+
 ### 0 — Mock (no cloud keys)
 
 ```bash
 pip install -e "."
 ifixai run --provider mock --api-key not-used --eval-mode self
 ```
-
-`mock` ignores the key string; `--eval-mode self` is required when no second provider credential is present.
 
 ### 1 — OpenAI
 
@@ -121,34 +126,37 @@ Single key only (self-judge):
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --eval-mode self
 ```
 
-### 2 — OpenRouter
+### 2 — Anthropic
+
+```bash
+pip install -e ".[anthropic]"
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+export GEMINI_API_KEY=...   # second provider for cross-judge (or use --eval-mode self)
+ifixai run --provider anthropic --api-key "$ANTHROPIC_API_KEY" --model claude-sonnet-4-20250514
+```
+
+### 3 — OpenRouter (explicit judge)
 
 ```bash
 pip install -e ".[openrouter]"    # installs openai SDK; OpenRouter is OpenAI-compatible — other compatible SDKs or --provider http work too
 export OPENROUTER_API_KEY=sk-or-...
 export ANTHROPIC_API_KEY=sk-ant-api03-...
-ifixai run --provider openrouter --api-key "$OPENROUTER_API_KEY" --model openai/gpt-4o
+ifixai run --provider openrouter --api-key "$OPENROUTER_API_KEY" --model openai/gpt-4o \
+  --judge-provider anthropic --judge-api-key "$ANTHROPIC_API_KEY" --judge-model claude-sonnet-4-20250514
 ```
 
-### 3 — Anthropic
-
-```bash
-pip install -e ".[anthropic]"
-export ANTHROPIC_API_KEY=sk-ant-api03-...
-export OPENAI_API_KEY=sk-...
-ifixai run --provider anthropic --api-key "$ANTHROPIC_API_KEY" --model claude-sonnet-4-20250514
-```
+Pinning the judge avoids the underlying-model collision OpenRouter routing can introduce (e.g. routing the SUT to an Anthropic model while Anthropic is also the auto-judge).
 
 ### 4 — Google Gemini
 
 ```bash
 pip install -e ".[gemini]"
 export GEMINI_API_KEY=...    # or GOOGLE_API_KEY
-export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-api03-...   # second provider for cross-judge (or use --eval-mode self)
 ifixai run --provider gemini --api-key "$GEMINI_API_KEY"
 ```
 
-### 5 — Azure OpenAI
+### 5 — Azure OpenAI (explicit judge)
 
 ```bash
 pip install -e ".[azure]"          # or .[openai] — same OpenAI-compatible SDK
@@ -157,7 +165,8 @@ export ANTHROPIC_API_KEY=sk-ant-api03-...
 ifixai run --provider azure \
   --endpoint https://YOUR_RESOURCE.openai.azure.com/ \
   --api-key "$AZURE_OPENAI_API_KEY" \
-  --model YOUR_DEPLOYMENT_NAME
+  --model YOUR_DEPLOYMENT_NAME \
+  --judge-provider anthropic --judge-api-key "$ANTHROPIC_API_KEY" --judge-model claude-sonnet-4-20250514
 ```
 
 ### 6 — AWS Bedrock
@@ -166,7 +175,7 @@ ifixai run --provider azure \
 pip install -e ".[bedrock]"
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
-export OPENAI_API_KEY=sk-...
+export GEMINI_API_KEY=...   # second provider for cross-judge (or use --eval-mode self)
 ifixai run --provider bedrock --api-key not-used \
   --model anthropic.claude-3-5-sonnet-20240620-v1:0
 ```
@@ -178,7 +187,7 @@ Authentication uses the **standard AWS credential chain** (env vars or instance 
 ```bash
 pip install -e ".[huggingface]"
 export HF_TOKEN=hf_...
-export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-api03-...   # second provider for cross-judge (or use --eval-mode self)
 ifixai run --provider huggingface --api-key "$HF_TOKEN" --model meta-llama/Llama-3.1-8B-Instruct
 ```
 
@@ -188,7 +197,7 @@ ifixai run --provider huggingface --api-key "$HF_TOKEN" --model meta-llama/Llama
 
 ```bash
 pip install -e "."
-export OPENAI_API_KEY=sk-...
+export GEMINI_API_KEY=...   # second provider for cross-judge (or use --eval-mode self)
 ifixai run --provider http \
   --endpoint http://localhost:8000/v1 \
   --api-key YOUR_SERVER_TOKEN \
@@ -197,22 +206,25 @@ ifixai run --provider http \
 
 Optional JSON headers: set **`IFIXAI_EXTRA_HEADERS`** to a JSON object (see `ifixai/providers/http.py`).
 
-### 9 — LangChain
+### 9 — LangChain (single-key self-judge)
 
 ```bash
 pip install -e "."
 pip install langchain          # not bundled as a named extra
-export OPENAI_API_KEY=sk-...
-ifixai run --provider langchain --api-key "$OPENAI_API_KEY"
+export OPENAI_API_KEY=sk-...    # one key only — SUT and judge share the same model
+ifixai run --provider langchain --api-key "$OPENAI_API_KEY" --eval-mode self
 ```
 
 Wire your chain inside the LangChain adapter as documented in the provider module.
 
 ## Scoring coverage
 
-Not all 32 inspections score against every provider shape. Five depend on
-hooks only a policy-wrapped provider exposes; vanilla LLMs return
-`insufficient_evidence` for those, and they're excluded from the aggregate.
+Five inspections depend on governance hooks. The default fixture ships
+with an inline `governance:` block, so any provider — vanilla LLM
+included — produces a full 32-inspection scorecard, with a `warnings[]`
+entry flagging that governance was scored from the declared fixture
+rather than measured at runtime. The numbers below assume a custom
+fixture **without** a governance block:
 
 | SUT shape | Inspections scored |
 |---|---|
@@ -222,7 +234,8 @@ hooks only a policy-wrapped provider exposes; vanilla LLMs return
 | Full mode + multi-judge ensemble | 32 |
 
 The scorecard is always explicit about exclusions: a `warnings[]` entry
-names each `insufficient_evidence` inspection.
+names each `insufficient_evidence` inspection. See [Wiring
+governance](#wiring-governance) to score all 32 against a vanilla LLM.
 
 ## Standard and Full run modes
 
@@ -230,11 +243,6 @@ names each `insufficient_evidence` inspection.
 |---|---|---|---|
 | **Standard** (default) | one provider credential | auto-pairs cross-provider when ≥2 distinct credentials are present; otherwise refuses unless `--eval-mode self` is passed | CI, drift tracking, sanity checks |
 | **Full** | hand-built fixture + ≥2 distinct judge providers | multi-judge ensemble with conservative tie-break and per-judge attribution | vendor comparisons, internal review |
-
-Standard mode never silently self-judges. With a single credential and no
-`--eval-mode self`, the run refuses with a clear message. Self-judge results
-are acceptable for CI drift but not for comparing systems — use Full mode
-when the result needs to survive review.
 
 ```bash
 # Standard, one command (two env credentials for cross-judge, or add --eval-mode self)
@@ -262,7 +270,7 @@ for the digest algorithm and verification helpers.
 | **UNPREDICTABILITY** Stability & Consistency | B19-B23 | Context distortion, instruction drift, objective persistence, decision stability, policy version trace |
 | **OPACITY** Transparency & Auditability | B24-B27, B29, B31-B32 | Risk scoring, regulatory readiness, rate limiting, session integrity, prompt sensitivity, escalation correctness, off-topic detection |
 
-Canonical `B01`–`B32` → pillar mapping (matches `InspectionSpec.category` in each `runner.py`): **[docs/inspection_categories.md](docs/inspection_categories.md)**.
+Canonical `B01`–`B32` → pillar mapping: **[docs/inspection_categories.md](docs/inspection_categories.md)**.
 
 See [docs/methodology.md](docs/methodology.md) for evaluation paths,
 attestation facility (no inspections use it today), B28 RAG context integrity, and exploratory inspections (B15).
@@ -270,12 +278,10 @@ attestation facility (no inspections use it today), B28 RAG context integrity, a
 ## Domain-neutral fixtures
 
 Test code is domain-neutral. Industry knowledge lives in user-authored
-fixture YAML — never in test code. Fives example fixtures live under
+fixture YAML — never in test code. Five example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
-# Add --api-key "$OPENAI_API_KEY" (or your SUT provider). Use a second provider env for
-# judging, or append --eval-mode self when you only have one credential.
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/acme_legal.yaml
 
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/customer_support.yaml
@@ -293,7 +299,7 @@ Your domain knowledge (roles, users, tools, permissions, policies) lives in
 a fixture file (YAML or JSON). The fastest path:
 
 ```bash
-# Start from the smallest valid fixture (90 lines, every required key populated)
+# Start from the smallest valid fixture (every required key populated)
 cp ifixai/fixtures/smoke_tiny.yaml my-fixture.yaml
 
 # Edit roles, users, tools, permissions to match your system
@@ -311,14 +317,13 @@ Full authoring walkthrough: [ifixai/fixtures/README.md](ifixai/fixtures/README.m
 
 ## Wiring Governance
 
-A vanilla LLM has no audit trail, no override mechanism, and no policy
-version. The honest answer for governance inspections in that case is
-`insufficient_evidence` — and that is what iFixAi reports. To score the
-governance category against a real OpenAI/Anthropic/etc. call, you
-declare your control plane as YAML and iFixAi composes the structural
-hooks onto the provider at runtime.
+The default fixture ships with an inline `governance:` block, so any
+provider — vanilla LLM included — already produces a full scorecard out
+of the box.
 
-There are three ways to wire governance, in order of friction:
+When you author your own fixture, three options wire governance, in
+order of friction (drop all three and the run scores 27/32, with
+`insufficient_evidence` on the governance inspections):
 
 1. **`--governance <path>` flag** — supply an external `GovernanceFixture`
    YAML and iFixAi wraps the resolved provider with `GovernanceMixin`
@@ -352,12 +357,8 @@ There are three ways to wire governance, in order of friction:
    friction, less precise; the scorecard records that the bundle was
    synthesized rather than measured.
 
-In all three cases the scorecard's `warnings` array carries a string
-indicating the source (`--governance`, `governance: block`, or
-`synthesize: true`) so a 32/32 result cannot misrepresent itself as
-runtime-validated. The run manifest also records `governance_source`
-and `governance_fixture_digest`. See
-[docs/methodology.md](docs/methodology.md) for the design discussion.
+See [docs/methodology.md](docs/methodology.md) for the design
+discussion and manifest fields.
 
 ## In the Wild
 
@@ -424,7 +425,7 @@ ifixai init                    # check env for provider keys, suggest a first ru
 ifixai run                     # run tests (Standard or Full mode)
 ifixai run --fixture FILE      # run with a custom fixture (YAML or JSON)
 ifixai list tests              # list all 32 tests
-ifixai list fixtures           # list built-in fixtures
+ifixai list fixtures           # list registered named fixtures (examples/ are loaded by path)
 ifixai validate                # validate the per-test layout (32 folders)
 ifixai validate FILE           # validate a fixture against schema.json
 ifixai compare A B             # diff two scorecard reports
@@ -439,9 +440,6 @@ ifixai compare A B             # diff two scorecard reports
   caps overall score at 60%. B12 is **not** a mandatory minimum because its
   corpus is public and frontier models may have been adversarially trained
   on it.
-- **Statistical separability**: per-inspection scores at the default
-  `min_evidence_items=10` have a Wilson 95% CI half-width of ~±0.17 around
-  $\hat{p}=0.9$. Score deltas below that should not be quoted as movement.
 
 Full math, thresholds, and minimum-detectable-effect details:
 [docs/scoring.md](docs/scoring.md).
