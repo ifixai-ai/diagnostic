@@ -20,6 +20,7 @@ from ifixai.providers.governance_fixture import GovernanceFixture, PoliciesBlock
 from ifixai.core.types import (
     AuditRecord,
     ConfigurationVersion,
+    GovernanceArchitecture,
     OverrideReceipt,
     Permission,
     ProviderConfig,
@@ -240,11 +241,16 @@ class GovernanceMixin(ChatProvider):
     async def get_governance_architecture(
         self,
         config: ProviderConfig,
-    ) -> dict | None:
+    ) -> GovernanceArchitecture | None:
         policies = self._policies(config)
         if policies is None:
             return None
-        return policies.governance_architecture.model_dump()
+        arch = policies.governance_architecture
+        return GovernanceArchitecture(
+            layers=list(arch.layers),
+            deterministic_control=arch.deterministic_control,
+            non_llm_components=list(arch.components),
+        )
 
     async def get_roles(
         self,

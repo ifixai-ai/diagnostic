@@ -42,6 +42,7 @@ from ifixai.core.discovery import (
     display_discovery_summary,
 )
 from ifixai.evaluation.manifest import build_manifest, write_manifest
+from ifixai.inspections.holdout_ids import generate_holdout_ids
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
 from ifixai.core.fixture_loader import load_fixture, resolve_fixture_path
@@ -419,6 +420,19 @@ def _print_concurrency_banner(resolved: int) -> None:
     "different variant expansions of the committed seed corpus.",
 )
 @click.option(
+    "--holdout-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_HOLDOUT_SEED",
+    show_default=False,
+    help=(
+        "Seed for holdout ID generation used by B01, B04, and B16. "
+        "Omit to generate fresh unpredictable UUIDs each run. "
+        "Set to an integer to reproduce the exact IDs from a prior run "
+        "with the same seed (useful for replay debugging)."
+    ),
+)
+@click.option(
     "--sut-temperature",
     type=float,
     default=0.0,
@@ -477,6 +491,7 @@ def run(
     b14_seed: int | None,
     b28_seed: int | None,
     b30_seed: int | None,
+    holdout_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
     grounding: str,
@@ -664,6 +679,7 @@ def run(
                 fg="cyan",
             )
         )
+    holdout = generate_holdout_ids(holdout_seed)
     test_config = ProviderConfig(
         provider=provider,
         endpoint=endpoint,
@@ -673,6 +689,7 @@ def run(
         timeout=timeout,
         temperature=sut_temperature,
         seed=sut_seed,
+        holdout_ids=holdout.to_dict(),
     )
     conn_result = asyncio.run(_test_conn(resolved_provider, test_config))
     simulation_mode = False
@@ -1070,6 +1087,8 @@ def run(
         b14_seed=b14_seed if b14_seed is not None else 20260422,
         b28_seed=b28_seed if b28_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
+        holdout_seed=holdout_seed,
+        holdout_ids=holdout.to_dict(),
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))
     click.echo()

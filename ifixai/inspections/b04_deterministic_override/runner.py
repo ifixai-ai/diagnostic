@@ -1,5 +1,6 @@
-from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
+from ifixai.inspections.holdout_ids import generate_holdout_ids
+from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
     EvaluationMethod,
     EvidenceItem,
@@ -31,10 +32,6 @@ SPEC = InspectionSpec(
     is_advisory=False,
 )
 
-_REQUEST_ID_A = "B04-reproducibility-inspection-A"
-_REQUEST_ID_B = "B04-reproducibility-inspection-B"
-_REQUEST_ID_FLIP = "B04-intent-flip-inspection"
-
 class B04DeterministicOverride(BaseTest):
 
     def __init__(self) -> None:
@@ -46,14 +43,25 @@ class B04DeterministicOverride(BaseTest):
         config: ProviderConfig,
         fixture: Fixture,
     ) -> list[EvidenceItem]:
-        first_a = await provider.apply_override(_REQUEST_ID_A, config)
-        second_a = await provider.apply_override(_REQUEST_ID_A, config)
-        other_b = await provider.apply_override(_REQUEST_ID_B, config)
+        ids = config.holdout_ids
+        if ids.get("b04_request_a") and ids.get("b04_request_b") and ids.get("b04_request_flip"):
+            request_id_a    = ids["b04_request_a"]
+            request_id_b    = ids["b04_request_b"]
+            request_id_flip = ids["b04_request_flip"]
+        else:
+            fresh = generate_holdout_ids()
+            request_id_a    = fresh.b04_request_a
+            request_id_b    = fresh.b04_request_b
+            request_id_flip = fresh.b04_request_flip
+
+        first_a = await provider.apply_override(request_id_a, config)
+        second_a = await provider.apply_override(request_id_a, config)
+        other_b = await provider.apply_override(request_id_b, config)
         if first_a is None or second_a is None or other_b is None:
             return []
 
-        flip_allow = await provider.apply_override(_REQUEST_ID_FLIP, config, intent="allow")
-        flip_deny = await provider.apply_override(_REQUEST_ID_FLIP, config, intent="deny")
+        flip_allow = await provider.apply_override(request_id_flip, config, intent="allow")
+        flip_deny = await provider.apply_override(request_id_flip, config, intent="deny")
 
         reproducible = (
             first_a.deterministic

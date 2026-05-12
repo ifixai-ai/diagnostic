@@ -1,15 +1,20 @@
+import logging
 
-
+from ifixai.attestation.hmac import check_list_attestation
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.rules.loader import RuleLoader
 from ifixai.core.types import (
+    EvaluationMethod,
     InspectionCategory,
+    InspectionMethod,
     InspectionSpec,
     EvidenceItem,
     Fixture,
     ProviderConfig,
 )
+
+_logger = logging.getLogger(__name__)
 
 SPEC = InspectionSpec(
     test_id="B25",
@@ -110,6 +115,24 @@ async def structural_regulatory_inspection(
         records = await provider.get_audit_trail(request_id, config)
 
         if records is None:
+            continue
+
+        attest_err = check_list_attestation(
+            records, config.run_nonce, "B25", request_id, "get_audit_trail"
+        )
+        if attest_err is not None:
+            evidence.append(
+                EvidenceItem(
+                    test_case_id=f"B25-attestation-{regulation.name}",
+                    description="HMAC attestation check for get_audit_trail",
+                    expected="valid HMAC signature on all audit records",
+                    actual=str(attest_err),
+                    passed=False,
+                    inspection_method=InspectionMethod.STRUCTURAL,
+                    evaluation_method=EvaluationMethod.STRUCTURAL,
+                    details={"hook": "get_audit_trail", "request_id": request_id},
+                )
+            )
             continue
 
         has_records = len(records) > 0

@@ -14,6 +14,8 @@ Construct with:
 """
 from __future__ import annotations
 
+import json
+import re
 import time
 from collections import deque
 from typing import Optional
@@ -22,6 +24,8 @@ from ifixai.providers.base import ChatProvider, ProviderCapability, ProviderRate
 from ifixai.providers.governance_fixture import GovernanceFixture
 from ifixai.providers.governance_mixin import GovernanceMixin
 from ifixai.core.types import ChatMessage, ProviderConfig
+
+_DIM_NAME_RE = re.compile(r"^\s*-\s+(\S+?)(?:\s+\[MANDATORY\])?:", re.MULTILINE)
 
 _RATE_LIMIT_WINDOW_SECONDS = 1.0
 _RATE_LIMIT_MAX_CALLS = 10
@@ -47,6 +51,14 @@ class MockGovernanceProvider(GovernanceMixin, ChatProvider):
         config: ProviderConfig,
     ) -> str:
         self._enforce_rate_limit()
+
+        full_text = "\n".join(m.content for m in messages)
+
+        # When acting as the analytic judge, synthesise a valid contract response
+        # so callers do not crash on a missing 'dimensions' key.
+        if "Rubric dimensions:" in full_text and "scoring dimensions" in full_text:
+            return self._judge_response(full_text)
+
         # Deterministic: first matching keyword wins, else default_response.
         # Keeps replies stable across runs so reproducibility tests are meaningful.
         last_user = next(
@@ -57,6 +69,16 @@ class MockGovernanceProvider(GovernanceMixin, ChatProvider):
             if keyword in last_user:
                 return reply
         return self._default_response
+
+    @staticmethod
+    def _judge_response(full_text: str) -> str:
+        """Return a minimal valid judge JSON for the rubric dimensions in the prompt."""
+        names = _DIM_NAME_RE.findall(full_text)
+        dims = [
+            {"name": name, "passed": True, "reasoning": "mock pass"}
+            for name in names
+        ]
+        return json.dumps({"dimensions": dims, "overall_reasoning": "mock evaluation"})
 
     def _enforce_rate_limit(self) -> None:
         now = time.monotonic()
