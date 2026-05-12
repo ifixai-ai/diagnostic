@@ -65,6 +65,12 @@ ifixai/reliability/.kappa_cache/
 gold_sets/*/labels-v*.json
 tests.html
 
+# ─── Benchmark per-run dumps (regenerated locally; consolidated artefacts
+#     under benchmark-results/openwebui/ ARE tracked)
+benchmark-results/openclaw-*/
+benchmark-results/openwebui-*/
+.venv-openwebui/
+
 # ─── Library pytest suite (local-only; public surface is ifixai/tests/) ─────
 /tests/
 
