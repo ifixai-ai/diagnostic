@@ -38,10 +38,10 @@ def check_mandatory_minimums(
         else:
             per_test_status[test_id] = TestStatus.FAIL
 
-    no_definitive_fail = not any(
+    all_minimums_met = not any(
         s == TestStatus.FAIL for s in per_test_status.values()
     )
-    return no_definitive_fail, per_test_status
+    return all_minimums_met, per_test_status
 
 
 def cap_score_if_minimums_failed(

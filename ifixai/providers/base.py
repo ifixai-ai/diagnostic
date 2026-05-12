@@ -168,81 +168,35 @@ class ChatProvider(ABC):
     ) -> list[Permission] | None:
         return None
 
+_CAPABILITY_PROBE_TIMEOUT: float = 5.0
+
+
+async def _probe_capability(coro: object, provider_name: str, name: str) -> object:
+    try:
+        return await asyncio.wait_for(coro, timeout=_CAPABILITY_PROBE_TIMEOUT)  # type: ignore[arg-type]
+    except (asyncio.TimeoutError, *_CAPABILITY_INSPECTION_EXPECTED_ERRORS):
+        _logger.exception("Capability probe %s failed for %s", name, provider_name)
+        return None
+
+
 async def detect_capabilities(
     provider: ChatProvider,
     config: ProviderConfig,
 ) -> ProviderCapabilities:
-    caps = {
-        "has_tool_calling": False,
-        "has_retrieval": False,
-        "has_audit_trail": False,
-        "has_routing": False,
-        "has_grounding": False,
-        "has_authorization": False,
-        "has_governance_architecture": False,
-        "has_override_mechanism": False,
-        "has_rate_limit_observability": False,
-        "has_configuration_versioning": False,
-    }
-
     provider_name = type(provider).__name__
+    p = lambda coro, name: _probe_capability(coro, provider_name, name)  # noqa: E731
 
-    try:
-        result = await provider.list_tools(config)
-        caps["has_tool_calling"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection list_tools failed for %s", provider_name)
-
-    try:
-        result = await provider.retrieve_sources("test", config)
-        caps["has_retrieval"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection retrieve_sources failed for %s", provider_name)
-
-    try:
-        result = await provider.get_audit_trail("test", config)
-        caps["has_audit_trail"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection get_audit_trail failed for %s", provider_name)
-
-    try:
-        result = await provider.get_routing_decision(config)
-        caps["has_routing"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection get_routing_decision failed for %s", provider_name)
-
-    try:
-        result = await provider.get_grounding_report(config)
-        caps["has_grounding"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection get_grounding_report failed for %s", provider_name)
-
-    try:
-        result = await provider.authorize_tool("_test", "_test", config)
-        caps["has_authorization"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection authorize_tool failed for %s", provider_name)
-
-    try:
-        result = await provider.get_governance_architecture(config)
-        caps["has_governance_architecture"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection get_governance_architecture failed for %s", provider_name)
-
-    try:
-        result = await provider.apply_override("_capability_inspection", config)
-        caps["has_override_mechanism"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection apply_override failed for %s", provider_name)
-
-    try:
-        result = await provider.get_configuration_version(config)
-        caps["has_configuration_versioning"] = result is not None
-    except _CAPABILITY_INSPECTION_EXPECTED_ERRORS:
-        _logger.exception("Capability inspection get_configuration_version failed for %s", provider_name)
-
-    caps["has_rate_limit_observability"] = bool(
-        getattr(provider, "surfaces_rate_limit_errors", False)
-    )
+    caps = {
+        "has_tool_calling": await p(provider.list_tools(config), "list_tools") is not None,
+        "has_retrieval": await p(provider.retrieve_sources("test", config), "retrieve_sources") is not None,
+        "has_audit_trail": await p(provider.get_audit_trail("test", config), "get_audit_trail") is not None,
+        "has_routing": await p(provider.get_routing_decision(config), "get_routing_decision") is not None,
+        "has_grounding": await p(provider.get_grounding_report(config), "get_grounding_report") is not None,
+        "has_authorization": await p(provider.authorize_tool("_test", "_test", config), "authorize_tool") is not None,
+        "has_governance_architecture": await p(provider.get_governance_architecture(config), "get_governance_architecture") is not None,
+        "has_override_mechanism": await p(provider.apply_override("_capability_inspection", config), "apply_override") is not None,
+        "has_configuration_versioning": await p(provider.get_configuration_version(config), "get_configuration_version") is not None,
+        "has_rate_limit_observability": bool(getattr(provider, "surfaces_rate_limit_errors", False)),
+    }
 
     return ProviderCapabilities(**caps)

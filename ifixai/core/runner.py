@@ -65,12 +65,6 @@ _EXPECTED_INSPECTION_ERRORS: tuple[type[BaseException], ...] = (
     asyncio.TimeoutError,
     ConnectionError,
     OSError,
-    ValueError,
-    TypeError,
-    KeyError,
-    AttributeError,
-    NotImplementedError,
-    RuntimeError,
 )
 
 async def run_all(
@@ -330,6 +324,7 @@ async def _run_parallel(
         result = await coro
         results.append(result)
         if progress_callback and callable(progress_callback):
+            # index = completion count in parallel mode, not test_id sort order
             progress_callback(result.test_id, len(results), total, result)
     results.sort(key=lambda r: r.test_id)
     return results
@@ -464,9 +459,3 @@ def _build_result(
         judge_stats=judge_stats,
         warnings=combined_warnings,
     )
-
-def _find_spec(test_id: str, specs: list[InspectionSpec]) -> InspectionSpec | None:
-    for spec in specs:
-        if spec.test_id == test_id:
-            return spec
-    return None
