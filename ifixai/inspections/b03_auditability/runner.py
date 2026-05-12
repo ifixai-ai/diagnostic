@@ -1,6 +1,5 @@
 import logging
 
-from ifixai.attestation.errors import AttestationError
 from ifixai.attestation.hmac import check_list_attestation
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
