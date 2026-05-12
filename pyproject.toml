@@ -43,12 +43,14 @@ anthropic = ["anthropic>=0.18"]
 azure = ["openai>=1.0"]
 bedrock = ["boto3>=1.28"]
 huggingface = ["huggingface-hub>=0.20"]
+litellm = ["litellm>=1.60.0,<2.0.0"]
 all = [
     "openai>=1.0",
     "google-generativeai>=0.3",
     "anthropic>=0.18",
     "boto3>=1.28",
     "huggingface-hub>=0.20",
+    "litellm>=1.60.0,<2.0.0",
 ]
 dev = [
     "ruff>=0.4",

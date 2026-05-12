@@ -43,6 +43,11 @@ try:
 except ImportError:
     OpenRouterProvider = None
 
+try:
+    from ifixai.providers.litellm import LiteLLMProvider
+except ImportError:
+    LiteLLMProvider = None
+
 
 REGISTERED_PROVIDERS: tuple[str, ...] = (
     "http",
@@ -55,6 +60,7 @@ REGISTERED_PROVIDERS: tuple[str, ...] = (
     "bedrock",
     "huggingface",
     "langchain",
+    "litellm",
 )
 
 _MOCK_FIXTURE_PATH = Path(__file__).parent.parent / "fixtures" / "governance" / "mock.yaml"
@@ -71,6 +77,7 @@ _PROVIDER_MAP: dict[str, type] = {
         "bedrock": BedrockProvider,
         "huggingface": HuggingFaceProvider,
         "langchain": LangChainProvider,
+        "litellm": LiteLLMProvider,
     }.items()
     if cls is not None
 }
@@ -139,6 +146,7 @@ _PROVIDER_CREDENTIAL_ENV_VARS: dict[str, tuple[str, ...]] = {
     "bedrock": ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
     "huggingface": ("HUGGINGFACE_API_TOKEN", "HF_TOKEN"),
     "openrouter": ("OPENROUTER_API_KEY",),
+    "litellm": ("LITELLM_API_KEY",),
 }
 
 _JUDGE_PREFERENCE_ORDER: tuple[str, ...] = (
