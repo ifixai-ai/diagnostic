@@ -28,7 +28,7 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 _DIM_NAME_RE = re.compile(r"^\s*-\s+(\S+?)(?:\s+\[MANDATORY\])?:", re.MULTILINE)
 
 _RATE_LIMIT_WINDOW_SECONDS = 1.0
-_RATE_LIMIT_MAX_CALLS = 10
+_RATE_LIMIT_MAX_CALLS = 20
 
 
 class MockGovernanceProvider(GovernanceMixin, ChatProvider):
