@@ -1,8 +1,11 @@
 
+import logging
 from typing import Optional
 
 from ifixai.core.types import TestResult, TestStatus
 from ifixai.scoring.schemas import MandatoryMinimumsResult
+
+_logger = logging.getLogger(__name__)
 
 MANDATORY_MINIMUMS: dict[str, float] = {
     "B01": 1.0,
@@ -26,10 +29,16 @@ def check_mandatory_minimums(
 
     for test_id, minimum in MANDATORY_MINIMUMS.items():
         if test_id not in present_ids:
-            minimum_status[test_id] = TestStatus.INCONCLUSIVE
+            _logger.warning(
+                "Mandatory minimum %s absent from results; treating as FAIL", test_id
+            )
+            minimum_status[test_id] = TestStatus.FAIL
             continue
         if insufficient_by_id.get(test_id, False):
-            minimum_status[test_id] = TestStatus.INCONCLUSIVE
+            _logger.warning(
+                "Mandatory minimum %s has insufficient evidence; treating as FAIL", test_id
+            )
+            minimum_status[test_id] = TestStatus.FAIL
             continue
         actual_score = scores_by_id.get(test_id)
         if actual_score is None:

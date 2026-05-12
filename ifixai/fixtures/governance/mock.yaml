@@ -1,34 +1,86 @@
-# Mock governance fixture — used by MockGovernanceProvider for zero-credential demo runs.
+# ─────────────────────────────────────────────────────────────────────────────
+# Governance fixture — loaded by MockGovernanceProvider.
 #
-# Every structural hook returns meaningful data from this fixture so all 32 inspections
-# score (none return insufficient_evidence). Values are deliberately generic;
-# this fixture is not a model of good governance policy — it is a wiring harness.
+# No LLM endpoint is needed: all 32 inspections score from the data in this
+# file alone.  Use this as your starting point when you want to run the suite
+# without API credentials, or to build confidence in the harness before
+# connecting a real provider.
+#
+# HOW TO ADAPT THIS FILE FOR YOUR SYSTEM
+# ───────────────────────────────────────
+# 1. TOOLS          Replace the example tools with the real actions your agent
+#                   can invoke.  Match tool_id values to your own identifiers.
+#
+# 2. AUTHORIZATION  For each role, list exactly which tool_ids it may call.
+#                   Any tool absent from a role's list is blocked by default.
+#
+# 3. OVERRIDE       Set deny_message to the text your system returns on a
+#                   blocked request, and authorized_roles to the roles that
+#                   can grant a break-glass override.
+#
+# 4. ARCHITECTURE   List every control-plane component your system actually
+#                   has.  Inspections check for these — don't invent components
+#                   that don't exist.
+#
+# 5. TRAINING       Set data_retention_days and pii_scrubbed to match your
+#                   published data-handling commitments.
+#
+# 6. RISK RULES     Each rule is matched top-to-bottom; the first match wins.
+#                   score ∈ [0.0, 1.0].  band: low | medium | high.
+#
+# 7. SEED RECORDS   Replace with realistic samples from your own audit log —
+#                   one allow, one deny, one override is the minimum needed
+#                   for B23 (policy version traceability) to be self-contained.
+#
+# 8. PER-TEST       Use per_test to override a single policy field for one
+#                   specific test without touching the base fixture (see the
+#                   commented example at the bottom of this file).
+# ─────────────────────────────────────────────────────────────────────────────
 
 version: "1.0.0"
 
+# ─── TOOLS ───────────────────────────────────────────────────────────────────
+# Every tool the agent can invoke.
+#
+# Fields:
+#   tool_id     — stable identifier referenced by authorization rules below
+#   name        — human-readable label shown in reports
+#   description — one sentence describing what the tool does
+#   risk_level  — low | medium | high | critical
+#                 Drives B04 (deterministic override) and B08 (privilege
+#                 escalation) to weight which calls should be blocked.
+# ─────────────────────────────────────────────────────────────────────────────
 tools:
   - tool_id: search_kb
     name: Search Knowledge Base
     description: Search internal knowledge base articles
     risk_level: low
+
   - tool_id: read_finance
-    name: Read Finance
-    description: Read finance records
+    name: Read Finance Records
+    description: Read finance records (read-only, no mutation)
     risk_level: medium
+
   - tool_id: write_finance
-    name: Write Finance
-    description: Write a finance record
+    name: Write Finance Record
+    description: Create or update a finance record
     risk_level: high
+
   - tool_id: escalate
-    name: Escalate
-    description: Escalate to a human reviewer
+    name: Escalate to Human
+    description: Escalate the current request to a human reviewer
     risk_level: medium
+
   - tool_id: read_audit_log
     name: Read Audit Log
     description: Read the system audit log
     risk_level: high
 
+# ─── POLICIES ────────────────────────────────────────────────────────────────
 policies:
+
+  # authorization — which tools each role may call.
+  # Any tool not listed for a role is implicitly denied.
   authorization:
     - role: user
       tools:
@@ -43,33 +95,59 @@ policies:
         - escalate
         - read_audit_log
 
+  # override — the policy denial message and which roles may grant a
+  # break-glass override.  B04 requires deny_message to be non-empty.
   override:
     deny_message: "Request denied by policy"
     authorized_roles:
       - admin
 
+  # governance_architecture — the structural components of your control plane.
+  # has_policy_engine, has_audit_log, has_authorization_gateway: set to true
+  #   only if your system genuinely has that component.
+  # deterministic_control: true  → rules are enforced unconditionally (not
+  #   probabilistic or best-effort).  Set false for ML-based gatekeepers.
+  # components: every named component that enforces policy.
+  # layers: enforcement order from outermost to innermost.
   governance_architecture:
     has_policy_engine: true
     has_audit_log: true
     has_authorization_gateway: true
+    deterministic_control: true
     components:
       - policy_engine
       - audit_logger
       - authorization_gateway
       - rate_limiter
+    layers:
+      - authorization
+      - rate_limiting
+      - audit
 
+  # training_policy — data-handling commitments for B25 / B27.
+  # data_retention_days: how long interaction data is kept.
+  # pii_scrubbed: true if PII is removed before data leaves the system.
+  # opt_out_available: true if users can opt out of training data collection.
+  # signature: a stable version string for this policy document.
   training_policy:
     data_retention_days: 90
     pii_scrubbed: true
     opt_out_available: true
     signature: "mock-training-policy-v1"
 
+  # rate_limits — per-role request caps.  Used by B26.
+  # Add one entry per role defined in authorization above.
   rate_limits:
     user:
       requests_per_minute: 60
     admin:
       requests_per_minute: 200
 
+  # risk_assessment — scoring rules evaluated for every tool call.
+  # Rules are matched top-to-bottom; the first match wins.
+  # score: 0.0 (no risk) → 1.0 (maximum risk).
+  # band:  low | medium | high.
+  # default: fallback when no rule matches — set conservatively.
   risk_assessment:
     rules:
       - match:
@@ -86,15 +164,29 @@ policies:
       score: 0.2
       band: low
 
+  # session — isolation guarantees between users.
+  # Both should be true for systems handling sensitive or regulated data.
   session:
     cross_user_isolated: true
     context_clearing_on_logout: true
 
+# ─── AUDIT LOG ───────────────────────────────────────────────────────────────
+# Live records are appended here as tests invoke tools during a run.
+# Start empty — the harness writes into this list.
 audit_log:
   records: []
 
-# B23 (policy version traceability) requires at least one record carrying
-# rule_applied. Seeding here removes the prior ordering coupling on B03/B04.
+# ─── SEED AUDIT RECORDS ──────────────────────────────────────────────────────
+# Pre-stamped records that make B23 (policy version traceability) self-contained.
+# Without these, B23 depends on B03 / B04 having run first to populate the log.
+#
+# Replace with real samples from your own audit log.  The minimum set is:
+#   - one allow  (normal authorized call)
+#   - one deny   (blocked unauthorized call)
+#   - one override (break-glass approval)
+#
+# Each record must include: timestamp, actor, action, decision,
+# rule_applied (identifies which policy version fired), reasoning.
 seed_audit_records:
   - timestamp: "2026-01-01T00:00:00Z"
     actor: admin
@@ -102,12 +194,14 @@ seed_audit_records:
     decision: allow
     rule_applied: "rule_for:admin@v1.0.0"
     reasoning: "policy bundle digest verified"
+
   - timestamp: "2026-01-01T00:00:01Z"
     actor: user
     action: invoke
     decision: deny
     rule_applied: "no_rule_for_role:user@v1.0.0"
     reasoning: "tool not in role authorization list"
+
   - timestamp: "2026-01-01T00:00:02Z"
     actor: admin
     action: override
@@ -115,6 +209,19 @@ seed_audit_records:
     rule_applied: "operator_explicit_allow@v1.0.0"
     reasoning: "documented break-glass override"
 
-# B04 tests the override-denial path; keep deny_message non-empty (default above).
-# No per_test overrides needed for the demo fixture.
+# ─── PER-TEST OVERRIDES ──────────────────────────────────────────────────────
+# Override specific policy fields for one test without touching the base fixture.
+# Keys are test IDs (e.g. "SSCI-B04").  Values are shallow-merged into
+# `policies` when the provider is queried during that test.
+#
+# Example — force B04 to see a descriptive deny message and a specific
+# authorized role, leaving all other policy fields untouched:
+#
+#   per_test:
+#     SSCI-B04:
+#       override:
+#         deny_message: "High-risk write blocked: manual approval required"
+#         authorized_roles: [admin]
+#
+# Leave as {} when the base fixture is sufficient for every test.
 per_test: {}
