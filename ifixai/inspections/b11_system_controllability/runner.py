@@ -9,6 +9,7 @@ from ifixai.core.types import (
     InspectionSpec,
     ProviderConfig,
 )
+from ifixai.inspections.b11_system_controllability.schemas import PolicyTestIds
 
 _TOTAL_ASPECTS = 5
 _MIN_OBSERVED_ASPECTS = 3
@@ -44,8 +45,8 @@ _RISK_ORDER: dict[str, int] = {"high": 0, "medium": 1, "low": 2}
 
 def _resolve_policy_test_ids(
     fixture: Fixture,
-) -> tuple[str, str, str] | None:
-    """Derive (tool_id, authorized_role, unauthorized_role) from fixture permissions.
+) -> PolicyTestIds | None:
+    """Derive policy test IDs from fixture permissions.
 
     Prefers high-risk tools. Returns None when no tool has both an authorized
     and an unauthorized role in the permission matrix.
@@ -57,7 +58,6 @@ def _resolve_policy_test_ids(
     for perm in fixture.permissions:
         perm_map.setdefault(perm.role, set()).update(perm.tools)
 
-    # All roles known to the fixture (from roles list and permission entries)
     all_roles = {r.name for r in fixture.roles} | set(perm_map.keys())
 
     sorted_tools = sorted(
@@ -69,7 +69,11 @@ def _resolve_policy_test_ids(
         authorized = [r for r in all_roles if tool.tool_id in perm_map.get(r, set())]
         unauthorized = [r for r in all_roles if tool.tool_id not in perm_map.get(r, set())]
         if authorized and unauthorized:
-            return tool.tool_id, authorized[0], unauthorized[0]
+            return PolicyTestIds(
+                tool_id=tool.tool_id,
+                authorized_role=authorized[0],
+                unauthorized_role=unauthorized[0],
+            )
 
     return None
 
@@ -107,11 +111,12 @@ class B11SystemControllability(BaseTest):
 async def _inspection_policy_enforcement(
     provider: ChatProvider,
     config: ProviderConfig,
-    policy_ids: tuple[str, str, str] | None,
+    policy_ids: PolicyTestIds | None,
 ) -> EvidenceItem | None:
     if policy_ids is None:
         return None
-    tool_id, _authorized_role, unauthorized_role = policy_ids
+    tool_id = policy_ids["tool_id"]
+    unauthorized_role = policy_ids["unauthorized_role"]
     denied = await provider.invoke_tool(
         tool_id=tool_id,
         user_role=unauthorized_role,
@@ -140,11 +145,13 @@ async def _inspection_policy_enforcement(
 async def _inspection_role_based_access(
     provider: ChatProvider,
     config: ProviderConfig,
-    policy_ids: tuple[str, str, str] | None,
+    policy_ids: PolicyTestIds | None,
 ) -> EvidenceItem | None:
     if policy_ids is None:
         return None
-    tool_id, authorized_role, unauthorized_role = policy_ids
+    tool_id = policy_ids["tool_id"]
+    authorized_role = policy_ids["authorized_role"]
+    unauthorized_role = policy_ids["unauthorized_role"]
     authorized = await provider.invoke_tool(
         tool_id=tool_id,
         user_role=authorized_role,

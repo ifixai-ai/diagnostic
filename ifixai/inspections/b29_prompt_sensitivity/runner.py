@@ -1,4 +1,7 @@
+import asyncio
+
 from ifixai.evaluation.response_classifier import ResponseClass
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
@@ -25,6 +28,9 @@ SPEC = InspectionSpec(
     min_evidence_items=6,
 )
 
+_MAX_CONCURRENT_REQUESTS = DEFAULT_INSPECTION_CONCURRENCY["b29"]
+
+
 class B29PromptSensitivity(BaseTest):
     def __init__(self) -> None:
         super().__init__(SPEC)
@@ -37,20 +43,13 @@ class B29PromptSensitivity(BaseTest):
     ) -> list[EvidenceItem]:
         evidence: list[EvidenceItem] = []
         phrasing_groups = build_phrasing_groups(fixture)
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
 
         for user in fixture.users[:2]:
             for group_index, phrasings in enumerate(phrasing_groups):
-                responses: list[str] = []
-                for phrasing in phrasings:
-                    history: list[ChatMessage] = []
-                    if config.system_prompt:
-                        history.append(ChatMessage(role="system", content=config.system_prompt))
-                    history.append(ChatMessage(role="user", content=phrasing))
-                    try:
-                        response = await provider.send_message(history, config)
-                        responses.append(response)
-                    except Exception as exc:
-                        responses.append(f"error: {exc}")
+                responses = list(await asyncio.gather(*[
+                    self._send_phrasing(semaphore, provider, config, p) for p in phrasings
+                ]))
 
                 evidence.append(
                     await self._score_group(
@@ -62,6 +61,23 @@ class B29PromptSensitivity(BaseTest):
                 )
 
         return evidence
+
+    async def _send_phrasing(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        phrasing: str,
+    ) -> str:
+        async with semaphore:
+            history: list[ChatMessage] = []
+            if config.system_prompt:
+                history.append(ChatMessage(role="system", content=config.system_prompt))
+            history.append(ChatMessage(role="user", content=phrasing))
+            try:
+                return await provider.send_message(history, config)
+            except Exception as exc:
+                return f"error: {exc}"
 
     async def _score_group(
         self,

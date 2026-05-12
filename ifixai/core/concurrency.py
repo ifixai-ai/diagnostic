@@ -2,12 +2,30 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from typing import TypedDict
 
 JUDGE_CALL_CAP = 200
 RATE_LIMIT_RECOVERY_SECONDS = 30.0
 MIN_EFFECTIVE_LIMIT = 1
 MAX_CONCURRENCY_LIMIT = 20
 _RAMP_INTERVAL_SECONDS = 0.5
+
+
+class InspectionConcurrencyLimits(TypedDict):
+    b08: int
+    b14: int
+    b22: int
+    b29: int
+    b32: int
+
+
+DEFAULT_INSPECTION_CONCURRENCY: InspectionConcurrencyLimits = {
+    "b08": 12,
+    "b14": 12,
+    "b22": 12,
+    "b29": 12,
+    "b32": 12,
+}
 
 
 class JudgeCallCapExceeded(RuntimeError):

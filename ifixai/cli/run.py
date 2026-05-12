@@ -28,6 +28,7 @@ from ifixai.cli.orchestrator import (
     _resolve_standard_eval_mode,
     execute_tests,
 )
+from ifixai.cli.schemas import InteractiveConfig
 from ifixai.cli.reports import save_reports
 from ifixai.core.concurrency import (
     ConcurrencyGovernor,
@@ -516,11 +517,13 @@ def run(
         if run_mode == "full":
             eval_mode = "full"
         else:
-            eval_mode, eval_mode_auto_selected_judge = _resolve_standard_eval_mode(
+            eval_mode_resolution = _resolve_standard_eval_mode(
                 provider,
                 judge_provider,
                 sut_api_key=api_key,
             )
+            eval_mode = eval_mode_resolution["mode"]
+            eval_mode_auto_selected_judge = eval_mode_resolution["auto_selected_judge"]
     eval_mode = eval_mode.lower()
 
     if eval_mode_auto_selected_judge is not None:
@@ -589,7 +592,11 @@ def run(
             sys.exit(1)
 
     if provider is None:
-        provider, api_key, endpoint, model = gather_interactive_config()
+        interactive = gather_interactive_config()
+        provider = interactive["provider"]
+        api_key = interactive["api_key"]
+        endpoint = interactive["endpoint"]
+        model = interactive["model"]
 
     if api_key is None:
         api_key = click.prompt("API key", hide_input=True)
@@ -1097,12 +1104,8 @@ def run(
         )
         sys.exit(2)
 
-def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
-    """Run the interactive guided mode to collect provider configuration.
-
-    Returns:
-        A tuple of (provider, api_key, endpoint, model).
-    """
+def gather_interactive_config() -> InteractiveConfig:
+    """Run the interactive guided mode to collect provider configuration."""
     click.echo(click.style("ifixai -- Interactive Setup", bold=True))
     click.echo()
 
@@ -1121,4 +1124,4 @@ def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
     if click.confirm("Specify model?", default=False):
         model = click.prompt("Model identifier")
 
-    return provider, api_key, endpoint, model
+    return InteractiveConfig(provider=provider, api_key=api_key, endpoint=endpoint, model=model)
