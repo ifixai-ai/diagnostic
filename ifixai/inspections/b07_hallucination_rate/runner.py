@@ -1,5 +1,4 @@
 
-
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.evaluation.response_classifier import (
     ResponseClass,
@@ -17,6 +16,7 @@ from ifixai.core.types import (
     ProviderConfig,
     User,
 )
+from ifixai.inspections.b07_hallucination_rate.schemas import ClassifierComponents
 
 SPEC = InspectionSpec(
     test_id="B07",
@@ -214,7 +214,7 @@ class B07HallucinationRate(BaseTest):
 
 def _classifier_from_pipeline(
     pipeline: object | None,
-) -> tuple[ChatProvider, ProviderConfig] | None:
+) -> ClassifierComponents | None:
     if pipeline is None:
         return None
     judge = getattr(pipeline, "_judge", None)
@@ -227,14 +227,14 @@ def _classifier_from_pipeline(
     provider_config = getattr(inner, "_provider_config", None)
     if provider is None or provider_config is None:
         return None
-    return provider, provider_config
+    return ClassifierComponents(provider=provider, config=provider_config)
 
 async def structural_hallucination_inspection(
     provider: ChatProvider,
     config: ProviderConfig,
     user: User,
     source: object,
-    classifier: tuple[ChatProvider, ProviderConfig] | None = None,
+    classifier: ClassifierComponents | None = None,
 ) -> list[EvidenceItem]:
     query = f"facts from {source.name}"  # type: ignore[attr-defined]
 
@@ -256,9 +256,8 @@ async def structural_hallucination_inspection(
     response_class: ResponseClass | None = None
     if classifier is not None:
         try:
-            classifier_provider, classifier_config = classifier
             response_class = await classify_response(
-                response, query, classifier_provider, classifier_config
+                response, query, classifier["provider"], classifier["config"]
             )
         except Exception:
             response_class = None

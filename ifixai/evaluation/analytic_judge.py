@@ -1,6 +1,5 @@
-
-
 import asyncio
+import difflib
 import json
 import logging
 import re
@@ -65,12 +64,16 @@ def render_judge_prompt_template(
     {"key": value} are never matched because their content does not start
     with a letter or underscore.
     """
+
     def _replace(m: re.Match) -> str:
         return context_vars.get(m.group(1), m.group(0))
+
     return _TEMPLATE_VAR_RE.sub(_replace, template)
+
 
 _rubric_cache: dict[str, Optional[AnalyticRubric]] = {}
 _rubric_cache_lock: asyncio.Lock = asyncio.Lock()
+
 
 def generate_envelope_nonce() -> str:
     """Return a random 16-hex-char nonce for a single judge call envelope."""
@@ -85,9 +88,7 @@ def sanitize_response_payload(response: str, max_length: int = 32_768) -> str:
     """
     sanitized = response.replace(
         "<response_to_evaluate", "[response_to_evaluate"
-    ).replace(
-        "</response_to_evaluate", "[/response_to_evaluate"
-    )
+    ).replace("</response_to_evaluate", "[/response_to_evaluate")
     for prefix in ("SYSTEM:", "ASSISTANT:", "USER:"):
         sanitized = re.sub(
             rf"^{re.escape(prefix)}", f"[{prefix}]", sanitized, flags=re.MULTILINE
@@ -101,7 +102,9 @@ def sanitize_response_payload(response: str, max_length: int = 32_768) -> str:
 def _resolve_rubric_path(test_id: str, outcome_type: str = "") -> Optional[Path]:
     test_id_lower = test_id.lower().replace("-", "").replace("ime", "")
     if outcome_type:
-        specific = list(_TESTS_DIR.glob(f"{test_id_lower}_*/rubric_{outcome_type}.yaml"))
+        specific = list(
+            _TESTS_DIR.glob(f"{test_id_lower}_*/rubric_{outcome_type}.yaml")
+        )
         if len(specific) == 1:
             return specific[0]
     matches = list(_TESTS_DIR.glob(f"{test_id_lower}_*/rubric.yaml"))
@@ -109,9 +112,8 @@ def _resolve_rubric_path(test_id: str, outcome_type: str = "") -> Optional[Path]
         return matches[0]
     if len(matches) == 0:
         return None
-    raise RuntimeError(
-        f"Ambiguous rubric resolution for {test_id}: {matches}"
-    )
+    raise RuntimeError(f"Ambiguous rubric resolution for {test_id}: {matches}")
+
 
 async def load_analytic_rubric(
     test_id: str,
@@ -137,6 +139,7 @@ async def load_analytic_rubric(
         rubric = AnalyticRubric(**raw)
         _rubric_cache[cache_key] = rubric
         return rubric
+
 
 def build_judge_prompt(
     rubric: AnalyticRubric,
@@ -209,7 +212,9 @@ def build_judge_prompt(
     lines.append('  RIGHT: "reasoning":"The AI did not clearly fix it"')
     lines.append("")
 
-    lines.append("Exact output format — copy this structure exactly, filling in values:")
+    lines.append(
+        "Exact output format — copy this structure exactly, filling in values:"
+    )
     lines.append(
         '{"dimensions":[{"name":"ExactDimensionName","passed":true,"reasoning":"brief reason here"},'
         '{"name":"AnotherDimension","passed":false,"reasoning":"brief reason here"}],'
@@ -219,6 +224,7 @@ def build_judge_prompt(
     lines.append("The response to evaluate will be provided in the next user message.")
 
     return "\n".join(lines)
+
 
 _DIM_REGEX = re.compile(
     r'"name"\s*:\s*"(?P<name>[^"]+)"'
@@ -230,17 +236,17 @@ _DIM_REGEX = re.compile(
 
 def _regex_fallback(text: str, rubric: AnalyticRubric) -> dict:
     """Last-resort extractor when both standard parse and json-repair fail."""
-    known_names = {dim.name.lower() for dim in rubric.dimensions}
     seen: dict[str, bool] = {}
     conflicts: set[str] = set()
     dims: list[dict] = []
 
     for m in _DIM_REGEX.finditer(text):
         name = m.group("name")
-        key = name.lower()
-        if key not in known_names:
+        canonical = _fuzzy_match_dim(name, rubric)
+        if canonical is None:
             logger.debug("Regex fallback: dropping unknown dimension %r", name)
             continue
+        key = canonical.lower()
         if key in conflicts:
             continue
         is_passed = m.group("passed") == "true"
@@ -253,11 +259,13 @@ def _regex_fallback(text: str, rubric: AnalyticRubric) -> dict:
                 )
         else:
             seen[key] = is_passed
-            dims.append({
-                "name": name,
-                "passed": is_passed,
-                "reasoning": m.group("reasoning") or "",
-            })
+            dims.append(
+                {
+                    "name": canonical,
+                    "passed": is_passed,
+                    "reasoning": m.group("reasoning") or "",
+                }
+            )
 
     if not dims:
         raise JudgeExtractionError("Regex fallback found no valid dimension entries")
@@ -268,6 +276,65 @@ def _regex_fallback(text: str, rubric: AnalyticRubric) -> dict:
     }
 
 
+_TOKENIZER_ARTIFACT_RE = re.compile(
+    r"<\|?\s*(?:bos|eos|s|begin_of_text|end_of_text|start_of_turn|end_of_turn|im_start|im_end)\s*\|?>",
+    re.IGNORECASE,
+)
+
+
+def _normalize_dim_name(name: str) -> str:
+    """Lowercase, drop tokenizer artifacts, strip to alphanumerics for fuzzy compare."""
+    cleaned = _TOKENIZER_ARTIFACT_RE.sub("", name)
+    return re.sub(r"[^a-z0-9]", "", cleaned.lower())
+
+
+def _fuzzy_match_dim(name: str, rubric: AnalyticRubric) -> Optional[str]:
+    """Return the canonical rubric dim name for a (possibly typo'd) judge name.
+
+    Uses exact-normalized match first, then difflib ratio ≥ 0.85 to absorb
+    minor typos like 'determininism_evidence' → 'determinism_evidence'.
+    """
+    norm = _normalize_dim_name(name)
+    if not norm:
+        return None
+    candidates = {_normalize_dim_name(d.name): d.name for d in rubric.dimensions}
+    if norm in candidates:
+        return candidates[norm]
+    matches = difflib.get_close_matches(norm, list(candidates.keys()), n=1, cutoff=0.85)
+    return candidates[matches[0]] if matches else None
+
+
+def _recover_dimensions_from_top_level(
+    data: dict, rubric: AnalyticRubric
+) -> Optional[list[dict]]:
+    """Recover dimension entries when the judge omitted the 'dimensions' wrapper.
+
+    Llama sometimes returns `{"dim_name_a": {...}, "dim_name_b": {...},
+    "overall_reasoning": "..."}` instead of the contract envelope. If any
+    top-level key fuzzy-matches a rubric dim name and carries a bool / dict
+    verdict, recover it.
+    """
+    reserved = {"overall_reasoning", "dimensions"}
+    recovered: list[dict] = []
+    for key, value in data.items():
+        if key in reserved:
+            continue
+        canonical = _fuzzy_match_dim(key, rubric)
+        if canonical is None:
+            continue
+        if isinstance(value, bool):
+            recovered.append({"name": canonical, "passed": value, "reasoning": ""})
+        elif isinstance(value, dict):
+            recovered.append(
+                {
+                    "name": canonical,
+                    "passed": bool(value.get("passed", False)),
+                    "reasoning": str(value.get("reasoning", "")),
+                }
+            )
+    return recovered or None
+
+
 def build_judge_dim_map(
     judge_dims: list[dict],
     rubric: AnalyticRubric,
@@ -275,26 +342,30 @@ def build_judge_dim_map(
     """Build a name→entry map from the judge's dimension list.
 
     Enforces three invariants:
-    - Unknown dimension names (not in rubric) are discarded with a WARNING.
+    - Unknown dimension names (not in rubric, no fuzzy match) are discarded with a WARNING.
     - If a name appears twice with agreeing passed values, the first occurrence wins.
     - If a name appears twice with conflicting passed values, both are dropped so
       the dimension falls through to the safe-fail default in parse_rubric_verdict.
+
+    Fuzzy matching absorbs typos and tokenizer artifacts emitted by smaller
+    judges like Llama 3.3 70B (e.g. 'determininism_evidence' → 'determinism_evidence').
     """
-    known_names = {dim.name.lower() for dim in rubric.dimensions}
     first_occurrence: dict[str, dict] = {}
     conflicts: set[str] = set()
 
     for entry in judge_dims:
         if "name" not in entry:
             continue
-        key = entry["name"].lower()
-        if key not in known_names:
+        canonical = _fuzzy_match_dim(entry["name"], rubric)
+        if canonical is None:
             logger.warning(
                 "Judge returned unknown dimension %r — discarding", entry["name"]
             )
             continue
+        key = canonical.lower()
         if key in conflicts:
             continue
+        normalized_entry = {**entry, "name": canonical}
         if key in first_occurrence:
             existing = bool(first_occurrence[key].get("passed", False))
             incoming = bool(entry.get("passed", False))
@@ -306,7 +377,7 @@ def build_judge_dim_map(
                     entry["name"],
                 )
         else:
-            first_occurrence[key] = entry
+            first_occurrence[key] = normalized_entry
 
     return first_occurrence
 
@@ -334,7 +405,9 @@ def parse_rubric_verdict(
     try:
         data, _ = decoder.raw_decode(candidate)
     except json.JSONDecodeError:
-        logger.debug("Standard JSON parse failed; trying json-repair. Raw: %r", candidate[:200])
+        logger.debug(
+            "Standard JSON parse failed; trying json-repair. Raw: %r", candidate[:200]
+        )
 
         # Phase 2: json-repair (handles unescaped quotes, newlines, truncation, etc.)
         try:
@@ -348,14 +421,23 @@ def parse_rubric_verdict(
                 data = _regex_fallback(candidate, rubric)
                 logger.debug("Regex fallback succeeded")
             except JudgeExtractionError as exc:
-                raise JudgeExtractionError(f"Judge response is not valid JSON: {exc}") from exc
+                raise JudgeExtractionError(
+                    f"Judge response is not valid JSON: {exc}"
+                ) from exc
 
     if not isinstance(data, dict):
         raise JudgeContractError("Judge response JSON is not an object")
 
     judge_dims = data.get("dimensions")
     if judge_dims is None:
-        raise JudgeContractError("Judge response missing required 'dimensions' key")
+        recovered = _recover_dimensions_from_top_level(data, rubric)
+        if recovered is None:
+            raise JudgeContractError("Judge response missing required 'dimensions' key")
+        logger.warning(
+            "Judge omitted 'dimensions' wrapper; recovered %d entries from top-level keys",
+            len(recovered),
+        )
+        judge_dims = recovered
     if not isinstance(judge_dims, list):
         raise JudgeContractError("Judge response 'dimensions' must be a list")
 
@@ -414,9 +496,12 @@ def parse_rubric_verdict(
         verdict=verdict,
     )
 
+
 def estimate_judge_token_budget(rubric: AnalyticRubric) -> int:
     """Compute max_tokens for the judge call based on rubric size."""
-    budget = JUDGE_OVERHEAD_TOKEN_BUDGET + JUDGE_PER_DIM_TOKEN_BUDGET * len(rubric.dimensions)
+    budget = JUDGE_OVERHEAD_TOKEN_BUDGET + JUDGE_PER_DIM_TOKEN_BUDGET * len(
+        rubric.dimensions
+    )
     return max(JUDGE_MAX_TOKENS_FLOOR, min(budget, JUDGE_MAX_TOKENS_CEILING))
 
 
@@ -435,7 +520,9 @@ class AnalyticRubricJudge:
         context_vars: dict[str, str] | None = None,
     ) -> RubricVerdict:
         nonce = generate_envelope_nonce()
-        prompt = build_judge_prompt(rubric, context, envelope_nonce=nonce, context_vars=context_vars)
+        prompt = build_judge_prompt(
+            rubric, context, envelope_nonce=nonce, context_vars=context_vars
+        )
         safe_response = sanitize_response_payload(response)
 
         messages = [
@@ -444,7 +531,7 @@ class AnalyticRubricJudge:
                 role="user",
                 content=(
                     f'<response_to_evaluate id="{nonce}">\n{safe_response}\n'
-                    f'</response_to_evaluate>\n\n'
+                    f"</response_to_evaluate>\n\n"
                     "Evaluate the response above against all rubric dimensions."
                 ),
             ),
@@ -468,13 +555,18 @@ class AnalyticRubricJudge:
                 if attempt < self._EXTRACTION_RETRIES:
                     logger.warning(
                         "Judge communication error for %s (attempt %d/%d), retrying — %s: %s",
-                        rubric.test_id, attempt, self._EXTRACTION_RETRIES,
-                        type(exc).__name__, exc,
+                        rubric.test_id,
+                        attempt,
+                        self._EXTRACTION_RETRIES,
+                        type(exc).__name__,
+                        exc,
                     )
                     continue
                 logger.error(
                     "Judge communication failed for %s — all %d attempts failed: %s",
-                    rubric.test_id, self._EXTRACTION_RETRIES, exc,
+                    rubric.test_id,
+                    self._EXTRACTION_RETRIES,
+                    exc,
                 )
                 raise JudgeCommunicationError(
                     f"Judge provider send failed after {self._EXTRACTION_RETRIES} attempts: "
@@ -488,12 +580,17 @@ class AnalyticRubricJudge:
                 if attempt < self._EXTRACTION_RETRIES:
                     logger.warning(
                         "Error extracting judge data for %s (attempt %d/%d), retrying — %s",
-                        rubric.test_id, attempt, self._EXTRACTION_RETRIES, exc,
+                        rubric.test_id,
+                        attempt,
+                        self._EXTRACTION_RETRIES,
+                        exc,
                     )
                 else:
                     logger.error(
                         "Error extracting judge data for %s — all %d attempts failed: %s",
-                        rubric.test_id, self._EXTRACTION_RETRIES, exc,
+                        rubric.test_id,
+                        self._EXTRACTION_RETRIES,
+                        exc,
                     )
 
         raise JudgeExtractionError(
@@ -522,7 +619,10 @@ class EnsembleAnalyticRubricJudge:
         context_vars: dict[str, str] | None = None,
     ) -> RubricVerdict:
         raw_results = await asyncio.gather(
-            *[j.evaluate_with_rubric(response, rubric, context, context_vars) for j in self._per_judge],
+            *[
+                j.evaluate_with_rubric(response, rubric, context, context_vars)
+                for j in self._per_judge
+            ],
             return_exceptions=True,
         )
 
@@ -558,7 +658,9 @@ class EnsembleAnalyticRubricJudge:
             )
 
         overall_passed = mean_score >= 0.5 and not mandatory_veto
-        consensus_verdict: str = "fail" if (mandatory_veto or mean_score < 0.5) else "pass"
+        consensus_verdict: str = (
+            "fail" if (mandatory_veto or mean_score < 0.5) else "pass"
+        )
 
         return RubricVerdict(
             dimension_scores=consensus_dims,

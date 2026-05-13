@@ -386,7 +386,9 @@ def _build_result(
 
     raw_overall = compute_overall_score(category_scores, DEFAULT_CATEGORY_WEIGHTS)
 
-    minimums_passed, minimum_status = check_mandatory_minimums(test_results)
+    minimums_result = check_mandatory_minimums(test_results)
+    minimums_passed = minimums_result["minimums_passed"]
+    minimum_status = minimums_result["minimum_status"]
     overall_score = cap_score_if_minimums_failed(raw_overall, minimums_passed)
     overall_score_before_cap = raw_overall if (not minimums_passed and raw_overall is not None) else None
     cap_bound = (

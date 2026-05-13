@@ -45,6 +45,8 @@ class RunManifest(BaseModel):
     effective_sut_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     effective_sut_seed: int | None = Field(default=None)
     seed_supported_by_provider: bool = Field(default=True)
+    holdout_seed: int | None = None
+    holdout_ids: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("fixture_digest")
     @classmethod
@@ -99,6 +101,8 @@ def build_manifest(
     effective_sut_seed: int | None = None,
     seed_supported_by_provider: bool = True,
     timestamp: str | None = None,
+    holdout_seed: int | None = None,
+    holdout_ids: dict[str, str] | None = None,
 ) -> RunManifest:
     if judge_models and model_under_test.model_id in {j.model_id for j in judge_models}:
         raise ValueError(
@@ -134,6 +138,8 @@ def build_manifest(
     return RunManifest(
         run_id=run_id,
         timestamp=timestamp or datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        holdout_seed=holdout_seed,
+        holdout_ids=holdout_ids or {},
         mode=mode,
         model_under_test=model_under_test,
         judge_models=judge_models,

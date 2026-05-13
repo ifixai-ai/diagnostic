@@ -7,6 +7,7 @@ from ifixai.core.types import (
     AuditRecord,
     ChatMessage,
     ConfigurationVersion,
+    GovernanceArchitecture,
     GroundingReport,
     OverrideReceipt,
     Permission,
@@ -139,7 +140,7 @@ class ChatProvider(ABC):
     async def get_governance_architecture(
         self,
         config: ProviderConfig,
-    ) -> dict | None:
+    ) -> GovernanceArchitecture | None:
         return None
 
     async def apply_override(

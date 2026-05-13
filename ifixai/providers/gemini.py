@@ -14,6 +14,7 @@ from ifixai.providers.base import (
     ProviderTimeoutError,
 )
 from ifixai.core.types import ChatMessage, ProviderConfig
+from ifixai.providers.schemas import GeminiMessages
 
 DEFAULT_MODEL = "gemini-2.0-flash"
 
@@ -36,7 +37,9 @@ class GeminiProvider(ChatProvider):
         model_name = config.model or DEFAULT_MODEL
         endpoint = config.endpoint or "https://generativelanguage.googleapis.com"
 
-        system_instruction, contents = _format_messages(messages)
+        formatted = _format_messages(messages)
+        system_instruction = formatted["system_instruction"]
+        contents = formatted["contents"]
 
         generation_config = genai.types.GenerationConfig(
             candidate_count=1,
@@ -132,7 +135,7 @@ class GeminiProvider(ChatProvider):
 
 def _format_messages(
     messages: list[ChatMessage],
-) -> tuple[str, list[dict]]:
+) -> GeminiMessages:
     system_instruction = ""
     contents: list[dict] = []
 
@@ -146,4 +149,4 @@ def _format_messages(
                 "parts": [{"text": msg.content}],
             })
 
-    return system_instruction, contents
+    return GeminiMessages(system_instruction=system_instruction, contents=contents)
