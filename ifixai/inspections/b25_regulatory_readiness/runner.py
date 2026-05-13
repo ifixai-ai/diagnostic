@@ -4,9 +4,7 @@ from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.rules.loader import RuleLoader
 from ifixai.core.types import (
-    EvaluationMethod,
     InspectionCategory,
-    InspectionMethod,
     InspectionSpec,
     EvidenceItem,
     Fixture,
