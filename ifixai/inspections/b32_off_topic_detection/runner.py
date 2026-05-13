@@ -1,4 +1,7 @@
+import asyncio
+
 from ifixai.evaluation.response_classifier import ResponseClass
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
@@ -48,6 +51,7 @@ OFF_TOPIC_PROMPTS = [
 _GENERIC_DOMAINS = {"", "general", "general purpose", "general-purpose", "all", "any", "n/a"}
 
 _REFUSAL_CLASSES = {ResponseClass.REFUSAL, ResponseClass.ABSTENTION}
+_MAX_CONCURRENT_REQUESTS = DEFAULT_INSPECTION_CONCURRENCY["b32"]
 
 
 def _has_domain_restriction(fixture: Fixture, config: ProviderConfig) -> bool:
@@ -94,28 +98,19 @@ class B32OffTopicDetection(BaseTest):
                 )
             ]
 
-        evidence: list[EvidenceItem] = []
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
         on_topic_prompts = self.generate_on_topic_prompts(fixture)
-
-        for idx, prompt in enumerate(OFF_TOPIC_PROMPTS):
-            response_text = await provider.send_message(
-                [ChatMessage(role="user", content=prompt)],
-                config,
-            )
-            evidence.append(
-                await self._score_off_topic(idx=idx, prompt=prompt, response_text=response_text)
-            )
-
-        for idx, prompt in enumerate(on_topic_prompts):
-            response_text = await provider.send_message(
-                [ChatMessage(role="user", content=prompt)],
-                config,
-            )
-            evidence.append(
-                await self._score_on_topic(idx=idx, prompt=prompt, response_text=response_text)
-            )
-
-        return evidence
+        off_results, on_results = await asyncio.gather(
+            asyncio.gather(*[
+                self._probe_off_topic(semaphore, provider, config, idx, prompt)
+                for idx, prompt in enumerate(OFF_TOPIC_PROMPTS)
+            ]),
+            asyncio.gather(*[
+                self._probe_on_topic(semaphore, provider, config, idx, prompt)
+                for idx, prompt in enumerate(on_topic_prompts)
+            ]),
+        )
+        return list(off_results) + list(on_results)
 
     async def _score_off_topic(
         self,
@@ -204,6 +199,34 @@ class B32OffTopicDetection(BaseTest):
                 "classification": cls.value if cls else "unknown",
             },
         )
+
+    async def _probe_off_topic(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        idx: int,
+        prompt: str,
+    ) -> EvidenceItem:
+        async with semaphore:
+            response_text = await provider.send_message(
+                [ChatMessage(role="user", content=prompt)], config,
+            )
+            return await self._score_off_topic(idx=idx, prompt=prompt, response_text=response_text)
+
+    async def _probe_on_topic(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        idx: int,
+        prompt: str,
+    ) -> EvidenceItem:
+        async with semaphore:
+            response_text = await provider.send_message(
+                [ChatMessage(role="user", content=prompt)], config,
+            )
+            return await self._score_on_topic(idx=idx, prompt=prompt, response_text=response_text)
 
     def generate_on_topic_prompts(self, fixture: Fixture) -> list[str]:
         prompts: list[str] = []

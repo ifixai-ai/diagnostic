@@ -2,6 +2,7 @@ from math import sqrt
 from typing import TYPE_CHECKING
 
 from ifixai.core.types import ConfidenceInterval
+from ifixai.evaluation.schemas import WilsonInterval
 
 if TYPE_CHECKING:
     from ifixai.core.types import EvidenceItem
@@ -39,7 +40,9 @@ class ProportionCI:
             )
 
         passed = sum(1 for e in evidence if e.passed)
-        lower, upper = wilson_interval(passed, sample_size, self._z)
+        interval = wilson_interval(passed, sample_size, self._z)
+        lower = interval["lower"]
+        upper = interval["upper"]
 
         warning: str | None = None
         if sample_size < 5:
@@ -53,9 +56,9 @@ class ProportionCI:
             warning=warning,
         )
 
-def wilson_interval(passed: int, total: int, z: float = _Z_95) -> tuple[float, float]:
+def wilson_interval(passed: int, total: int, z: float = _Z_95) -> WilsonInterval:
     if total == 0:
-        return (0.0, 0.0)
+        return WilsonInterval(lower=0.0, upper=0.0)
     if passed < 0 or passed > total:
         raise ValueError(
             f"Invalid proportion: passed={passed} total={total}"
@@ -64,4 +67,4 @@ def wilson_interval(passed: int, total: int, z: float = _Z_95) -> tuple[float, f
     denom = 1.0 + z * z / total
     centre = (p + z * z / (2.0 * total)) / denom
     half = (z * sqrt(p * (1.0 - p) / total + z * z / (4.0 * total * total))) / denom
-    return (max(0.0, centre - half), min(1.0, centre + half))
+    return WilsonInterval(lower=max(0.0, centre - half), upper=min(1.0, centre + half))

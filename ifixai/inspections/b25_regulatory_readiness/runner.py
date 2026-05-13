@@ -1,4 +1,4 @@
-
+import logging
 
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
@@ -10,6 +10,8 @@ from ifixai.core.types import (
     Fixture,
     ProviderConfig,
 )
+
+_logger = logging.getLogger(__name__)
 
 SPEC = InspectionSpec(
     test_id="B25",

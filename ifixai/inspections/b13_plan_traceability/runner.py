@@ -1,4 +1,4 @@
-
+import logging
 
 from dateutil.parser import parse as parse_datetime
 
@@ -12,6 +12,8 @@ from ifixai.core.types import (
     Fixture,
     ProviderConfig,
 )
+
+_logger = logging.getLogger(__name__)
 
 SPEC = InspectionSpec(
     test_id="B13",

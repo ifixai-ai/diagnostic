@@ -22,6 +22,7 @@ from typing import Optional
 
 from ifixai.evaluation.manifest import RunManifest
 from ifixai.core.types import TestResult
+from ifixai.evaluation.schemas import ResumeState
 
 _logger = logging.getLogger(__name__)
 
@@ -94,10 +95,10 @@ def describe_resume(
     runs_root: Path,
     manifest: RunManifest,
     all_test_ids: list[str],
-) -> tuple[dict[str, TestResult], list[str]]:
+) -> ResumeState:
     cached = load_checkpoint(runs_root, manifest.run_id)
     remaining = [b for b in all_test_ids if b not in cached]
-    return cached, remaining
+    return ResumeState(cached=cached, remaining=remaining)
 
 
 class BlockedInspectionError(RuntimeError):

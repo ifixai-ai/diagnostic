@@ -87,6 +87,7 @@ class ProviderConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     seed: Optional[int] = None
     max_tokens: Optional[int] = None
+    holdout_ids: dict[str, str] = Field(default_factory=dict)
 
 
 class ToolInfo(BaseModel):
@@ -164,6 +165,16 @@ class ConfigurationVersion(BaseModel):
     version: str = Field(min_length=1)
     source: str = ""
     applied_at: str = ""
+
+
+class GovernanceArchitecture(BaseModel):
+    """Typed replacement for the bare dict returned by get_governance_architecture."""
+
+    layers: list[str] = Field(default_factory=list)
+    deterministic_control: bool = False
+    non_llm_components: list[str] = Field(default_factory=list)
+    override_mechanism: str = ""
+    description: str = ""
 
 
 class IndustryContext(BaseModel):

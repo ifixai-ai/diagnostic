@@ -47,12 +47,27 @@ class LiteLLMProvider(ChatProvider):
         try:
             response = await _litellm.acompletion(**params)
 
-            content = response.choices[0].message.content
+            choices = response.choices
+            if not choices:
+                raise ProviderResponseError(
+                    provider="litellm",
+                    endpoint=config.endpoint or "default",
+                    details=f"No choices in response (id={response.id})",
+                )
+            choice = choices[0]
+            finish_reason = choice.finish_reason or "unknown"
+            if choice.message is None:
+                raise ProviderResponseError(
+                    provider="litellm",
+                    endpoint=config.endpoint or "default",
+                    details=f"Missing message in choice (finish_reason={finish_reason})",
+                )
+            content = choice.message.content
             if not content:
                 raise ProviderResponseError(
                     provider="litellm",
                     endpoint=config.endpoint or "default",
-                    details="Empty content in response",
+                    details=f"Empty content in response (finish_reason={finish_reason})",
                 )
             return content
 

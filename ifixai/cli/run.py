@@ -28,6 +28,7 @@ from ifixai.cli.orchestrator import (
     _resolve_standard_eval_mode,
     execute_tests,
 )
+from ifixai.cli.schemas import InteractiveConfig
 from ifixai.cli.reports import save_reports
 from ifixai.core.concurrency import (
     ConcurrencyGovernor,
@@ -41,6 +42,7 @@ from ifixai.core.discovery import (
     display_discovery_summary,
 )
 from ifixai.evaluation.manifest import build_manifest, write_manifest
+from ifixai.inspections.holdout_ids import generate_holdout_ids
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
 from ifixai.core.fixture_loader import load_fixture, resolve_fixture_path
@@ -418,6 +420,19 @@ def _print_concurrency_banner(resolved: int) -> None:
     "different variant expansions of the committed seed corpus.",
 )
 @click.option(
+    "--holdout-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_HOLDOUT_SEED",
+    show_default=False,
+    help=(
+        "Seed for holdout ID generation used by B01, B04, and B16. "
+        "Omit to generate fresh unpredictable UUIDs each run. "
+        "Set to an integer to reproduce the exact IDs from a prior run "
+        "with the same seed (useful for replay debugging)."
+    ),
+)
+@click.option(
     "--sut-temperature",
     type=float,
     default=0.0,
@@ -476,6 +491,7 @@ def run(
     b14_seed: int | None,
     b28_seed: int | None,
     b30_seed: int | None,
+    holdout_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
     grounding: str,
@@ -516,11 +532,13 @@ def run(
         if run_mode == "full":
             eval_mode = "full"
         else:
-            eval_mode, eval_mode_auto_selected_judge = _resolve_standard_eval_mode(
+            eval_mode_resolution = _resolve_standard_eval_mode(
                 provider,
                 judge_provider,
                 sut_api_key=api_key,
             )
+            eval_mode = eval_mode_resolution["mode"]
+            eval_mode_auto_selected_judge = eval_mode_resolution["auto_selected_judge"]
     eval_mode = eval_mode.lower()
 
     if eval_mode_auto_selected_judge is not None:
@@ -589,7 +607,11 @@ def run(
             sys.exit(1)
 
     if provider is None:
-        provider, api_key, endpoint, model = gather_interactive_config()
+        interactive = gather_interactive_config()
+        provider = interactive["provider"]
+        api_key = interactive["api_key"]
+        endpoint = interactive["endpoint"]
+        model = interactive["model"]
 
     if api_key is None:
         api_key = click.prompt("API key", hide_input=True)
@@ -657,6 +679,7 @@ def run(
                 fg="cyan",
             )
         )
+    holdout = generate_holdout_ids(holdout_seed)
     test_config = ProviderConfig(
         provider=provider,
         endpoint=endpoint,
@@ -666,6 +689,7 @@ def run(
         timeout=timeout,
         temperature=sut_temperature,
         seed=sut_seed,
+        holdout_ids=holdout.to_dict(),
     )
     conn_result = asyncio.run(_test_conn(resolved_provider, test_config))
     simulation_mode = False
@@ -1063,6 +1087,8 @@ def run(
         b14_seed=b14_seed if b14_seed is not None else 20260422,
         b28_seed=b28_seed if b28_seed is not None else 20260422,
         b30_seed=b30_seed if b30_seed is not None else 20260422,
+        holdout_seed=holdout_seed,
+        holdout_ids=holdout.to_dict(),
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))
     click.echo()
@@ -1097,12 +1123,8 @@ def run(
         )
         sys.exit(2)
 
-def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
-    """Run the interactive guided mode to collect provider configuration.
-
-    Returns:
-        A tuple of (provider, api_key, endpoint, model).
-    """
+def gather_interactive_config() -> InteractiveConfig:
+    """Run the interactive guided mode to collect provider configuration."""
     click.echo(click.style("ifixai -- Interactive Setup", bold=True))
     click.echo()
 
@@ -1121,4 +1143,4 @@ def gather_interactive_config() -> tuple[str, str, str | None, str | None]:
     if click.confirm("Specify model?", default=False):
         model = click.prompt("Model identifier")
 
-    return provider, api_key, endpoint, model
+    return InteractiveConfig(provider=provider, api_key=api_key, endpoint=endpoint, model=model)

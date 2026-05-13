@@ -14,6 +14,7 @@ from ifixai.providers.base import (
     ProviderTimeoutError,
 )
 from ifixai.core.types import ChatMessage, ProviderConfig
+from ifixai.providers.schemas import ConversePayload
 
 INITIAL_BACKOFF_SECONDS = 1.0
 BACKOFF_MULTIPLIER = 2.0
@@ -62,7 +63,9 @@ class BedrockProvider(ChatProvider):
 
         bedrock_client = session.client(**client_kwargs)
 
-        system_prompts, converse_messages = _format_for_converse(messages)
+        converse_payload = _format_for_converse(messages)
+        system_prompts = converse_payload["system_prompts"]
+        converse_messages = converse_payload["messages"]
 
         attempts = config.max_retries + 1
         backoff = INITIAL_BACKOFF_SECONDS
@@ -189,7 +192,7 @@ def _invoke_converse(
 
 def _format_for_converse(
     messages: list[ChatMessage],
-) -> tuple[list[dict], list[dict]]:
+) -> ConversePayload:
     system_prompts: list[dict] = []
     converse_messages: list[dict] = []
 
@@ -202,4 +205,4 @@ def _format_for_converse(
                 "content": [{"text": msg.content}],
             })
 
-    return system_prompts, converse_messages
+    return ConversePayload(system_prompts=system_prompts, messages=converse_messages)

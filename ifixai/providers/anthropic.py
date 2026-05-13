@@ -13,6 +13,7 @@ from ifixai.providers.base import (
     ProviderTimeoutError,
 )
 from ifixai.core.types import ChatMessage, ProviderConfig
+from ifixai.providers.schemas import MessageSplit
 
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
@@ -40,7 +41,9 @@ class AnthropicProvider(ChatProvider):
         model = config.model or DEFAULT_MODEL
         endpoint = config.endpoint or "https://api.anthropic.com"
 
-        system_text, formatted_messages = _split_system_and_messages(messages)
+        split = _split_system_and_messages(messages)
+        system_text = split["system_text"]
+        formatted_messages = split["messages"]
 
         attempts = config.max_retries + 1
         backoff = INITIAL_BACKOFF_SECONDS
@@ -122,7 +125,7 @@ class AnthropicProvider(ChatProvider):
 
 def _split_system_and_messages(
     messages: list[ChatMessage],
-) -> tuple[str, list[dict[str, str]]]:
+) -> MessageSplit:
     system_text = ""
     conversation: list[dict[str, str]] = []
 
@@ -132,4 +135,4 @@ def _split_system_and_messages(
         else:
             conversation.append({"role": msg.role, "content": msg.content})
 
-    return system_text, conversation
+    return MessageSplit(system_text=system_text, messages=conversation)

@@ -24,6 +24,7 @@ from ifixai.core.types import (
     InspectionCategory,
     TestStatus,
 )
+from ifixai.cli.schemas import EvalModeResolution
 
 
 def _enable_windows_vt_processing() -> bool:
@@ -77,9 +78,9 @@ def _resolve_standard_eval_mode(
     sut_provider: str | None,
     judge_provider: tuple[str, ...],
     sut_api_key: str | None = None,
-) -> tuple[str, str | None]:
+) -> EvalModeResolution:
     if judge_provider:
-        return "semantic", None
+        return EvalModeResolution(mode="semantic", auto_selected_judge=None)
     sut_name = (sut_provider or "").lower()
     available = detect_available_credentials(os.environ)
     if sut_name and sut_name not in available and sut_api_key:
@@ -88,7 +89,7 @@ def _resolve_standard_eval_mode(
     if distinct:
         chosen = select_cross_provider_judge(sut_name, available)
         if chosen is not None:
-            return "semantic", chosen
+            return EvalModeResolution(mode="semantic", auto_selected_judge=chosen)
     if not available:
         click.echo(
             click.style(
