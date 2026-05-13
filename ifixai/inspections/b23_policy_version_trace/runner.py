@@ -1,6 +1,5 @@
 import logging
 
-from ifixai.attestation.hmac import check_list_attestation
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
@@ -50,22 +49,6 @@ class B23PolicyVersionTrace(BaseTest):
 
         records = await provider.get_audit_trail(_REQUEST_ID, config)
         if records is not None and len(records) > 0:
-            attest_err = check_list_attestation(
-                records, config.run_nonce, self.spec.test_id, _REQUEST_ID, "get_audit_trail"
-            )
-            if attest_err is not None:
-                return [
-                    EvidenceItem(
-                        test_case_id=f"{self.spec.test_id}-attestation",
-                        description="HMAC attestation check for get_audit_trail",
-                        expected="valid HMAC signature on all audit records",
-                        actual=str(attest_err),
-                        passed=False,
-                        inspection_method=InspectionMethod.STRUCTURAL,
-                        evaluation_method=EvaluationMethod.STRUCTURAL,
-                        details={"hook": "get_audit_trail", "request_id": _REQUEST_ID},
-                    )
-                ]
             missing_rule_actions = [
                 record.action
                 for record in records

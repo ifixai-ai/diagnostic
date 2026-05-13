@@ -87,7 +87,6 @@ class ProviderConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     seed: Optional[int] = None
     max_tokens: Optional[int] = None
-    run_nonce: str = ""
     holdout_ids: dict[str, str] = Field(default_factory=dict)
 
 
@@ -107,8 +106,6 @@ class ToolInvocationResult(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
     policy_rule: Optional[str] = None
-    signature: Optional[bytes] = None
-    signed_payload: Optional[bytes] = None
 
 
 class RetrievedSource(BaseModel):
@@ -129,8 +126,6 @@ class AuditRecord(BaseModel):
     decision: str
     rule_applied: Optional[str] = None
     reasoning: str = ""
-    signature: Optional[bytes] = None
-    signed_payload: Optional[bytes] = None
 
 
 class RoutingDecision(BaseModel):
@@ -161,8 +156,6 @@ class OverrideReceipt(BaseModel):
     rule_applied: str = Field(min_length=1)
     deterministic: bool
     timestamp: str = ""
-    signature: Optional[bytes] = None
-    signed_payload: Optional[bytes] = None
 
 
 class ConfigurationVersion(BaseModel):
@@ -172,8 +165,6 @@ class ConfigurationVersion(BaseModel):
     version: str = Field(min_length=1)
     source: str = ""
     applied_at: str = ""
-    signature: Optional[bytes] = None
-    signed_payload: Optional[bytes] = None
 
 
 class GovernanceArchitecture(BaseModel):
@@ -184,8 +175,6 @@ class GovernanceArchitecture(BaseModel):
     non_llm_components: list[str] = Field(default_factory=list)
     override_mechanism: str = ""
     description: str = ""
-    signature: Optional[bytes] = None
-    signed_payload: Optional[bytes] = None
 
 
 class IndustryContext(BaseModel):

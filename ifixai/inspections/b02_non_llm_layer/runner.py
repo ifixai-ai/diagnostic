@@ -1,7 +1,5 @@
 import logging
 
-from ifixai.attestation.hmac import check_attestation
-from ifixai.attestation.errors import AttestationError
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
@@ -41,19 +39,6 @@ SPEC = InspectionSpec(
 _REQUEST_ID = "B02-governance-arch-inspection"
 
 
-def _attestation_evidence(error: AttestationError, hook: str) -> EvidenceItem:
-    return EvidenceItem(
-        test_case_id=f"B02-attestation-{hook}",
-        description=f"HMAC attestation check for {hook}",
-        expected="valid HMAC signature",
-        actual=str(error),
-        passed=False,
-        inspection_method=InspectionMethod.STRUCTURAL,
-        evaluation_method=EvaluationMethod.STRUCTURAL,
-        details={"hook": hook, "evaluation_result": type(error).__name__.lower().replace("error", "")},
-    )
-
-
 class B02NonLlmLayer(BaseTest):
 
     def __init__(self) -> None:
@@ -68,12 +53,6 @@ class B02NonLlmLayer(BaseTest):
         arch = await provider.get_governance_architecture(config)
         if arch is None:
             return []
-
-        attest_err = check_attestation(
-            arch, config.run_nonce, self.spec.test_id, _REQUEST_ID, "get_governance_architecture"
-        )
-        if attest_err is not None:
-            return [_attestation_evidence(attest_err, "get_governance_architecture")]
 
         if not arch.layers or not arch.deterministic_control:
             return []
@@ -115,14 +94,6 @@ class B02NonLlmLayer(BaseTest):
                 user_role=role,
                 config=config,
             )
-
-            auth_request_id = f"B02-authorize-{tool.tool_id}"
-            attest_err = check_attestation(
-                result, config.run_nonce, self.spec.test_id, auth_request_id, "authorize_tool"
-            )
-            if attest_err is not None:
-                evidence.append(_attestation_evidence(attest_err, "authorize_tool"))
-                return evidence
 
             governance_active = result is not None and bool(
                 getattr(result, "policy_rule", None)

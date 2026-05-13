@@ -78,12 +78,30 @@ class B22DecisionReproducibility(BaseTest):
     ) -> list[EvidenceItem]:
         nondeterministic_config = config.temperature != 0.0 and config.seed is None
         semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
-        results = await asyncio.gather(*[
-            self._run_stability_pair(semaphore, provider, config, user, tool, nondeterministic_config)
+        pairs = [
+            (user, tool)
             for user in fixture.users
             for tool in fixture.tools
-        ])
-        return list(results)
+        ]
+        raw = await asyncio.gather(
+            *[self._run_stability_pair(semaphore, provider, config, user, tool, nondeterministic_config)
+              for user, tool in pairs],
+            return_exceptions=True,
+        )
+        results: list[EvidenceItem] = []
+        for (user, tool), item in zip(pairs, raw):
+            if isinstance(item, BaseException):
+                results.append(EvidenceItem(
+                    test_case_id=f"B22_{user.user_id}_{tool.tool_id}",
+                    description=f"Decision stability ({REPETITIONS} reps) for {user.name}/{tool.name}",
+                    expected="stable decision across repetitions",
+                    actual=f"error: {item}",
+                    passed=False,
+                    details={"nondeterministic_config": nondeterministic_config},
+                ))
+            else:
+                results.append(item)
+        return results
 
     async def _run_stability_pair(
         self,
