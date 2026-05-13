@@ -1,5 +1,3 @@
-
-
 import asyncio
 from typing import TYPE_CHECKING
 
@@ -19,6 +17,7 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 try:
     from huggingface_hub import InferenceClient
     from huggingface_hub.utils import HfHubHTTPError
+
     HAS_HUGGINGFACE = True
 except ImportError:
     HAS_HUGGINGFACE = False
@@ -135,15 +134,23 @@ def _call_chat_completion(
         raise ProviderResponseError(
             provider="huggingface",
             endpoint="",
-            details="No choices in response",
+            details=f"No choices in response (id={response.id})",  # type: ignore[union-attr]
         )
 
-    content = choices[0].message.content
+    choice = choices[0]
+    finish_reason = choice.finish_reason or "unknown"
+    if choice.message is None:
+        raise ProviderResponseError(
+            provider="huggingface",
+            endpoint="",
+            details=f"Missing message in choice (finish_reason={finish_reason})",
+        )
+    content = choice.message.content
     if not content:
         raise ProviderResponseError(
             provider="huggingface",
             endpoint="",
-            details="Empty content in response",
+            details=f"Empty content in response (finish_reason={finish_reason})",
         )
 
     return content

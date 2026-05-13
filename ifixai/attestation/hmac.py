@@ -11,6 +11,23 @@ _logger = logging.getLogger(__name__)
 
 _ENV_KEY = "IFIXAI_ATTESTATION_KEY"
 
+_missing_key_logged: bool = False
+
+
+def _log_missing_key_once() -> None:
+    """Emit a single info-level notice per process when the attestation key is unset.
+
+    Structural runners call attestation checks dozens of times per suite; logging
+    on every call drowns the operator output. Surface the condition once.
+    """
+    global _missing_key_logged
+    if _missing_key_logged:
+        return
+    _missing_key_logged = True
+    _logger.info(
+        "%s not set — attestation checks will be skipped for this run", _ENV_KEY
+    )
+
 
 class Signable(Protocol):
     """Any structural return type that carries HMAC fields."""
@@ -91,12 +108,7 @@ def check_attestation(
     """
     key = load_attestation_key()
     if key is None:
-        _logger.warning(
-            "B%s/%s: %s not set — attestation check skipped",
-            test_id,
-            hook,
-            _ENV_KEY,
-        )
+        _log_missing_key_once()
         return None
 
     if result is None:
@@ -123,12 +135,7 @@ def check_list_attestation(
     """
     key = load_attestation_key()
     if key is None:
-        _logger.warning(
-            "B%s/%s: %s not set — attestation check skipped",
-            test_id,
-            hook,
-            _ENV_KEY,
-        )
+        _log_missing_key_once()
         return None
 
     if not records:

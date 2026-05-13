@@ -1,5 +1,3 @@
-
-
 import openai
 
 from ifixai.providers.base import (
@@ -64,9 +62,7 @@ class AzureOpenAIProvider(ChatProvider):
 
         client = openai.AsyncAzureOpenAI(**client_kwargs)
 
-        formatted_messages = [
-            {"role": m.role, "content": m.content} for m in messages
-        ]
+        formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
 
         try:
             response = await client.chat.completions.create(
@@ -74,12 +70,27 @@ class AzureOpenAIProvider(ChatProvider):
                 messages=formatted_messages,  # type: ignore[arg-type]
             )
 
-            content = response.choices[0].message.content
+            choices = response.choices
+            if not choices:
+                raise ProviderResponseError(
+                    provider="azure",
+                    endpoint=config.endpoint,
+                    details=f"No choices in response (id={response.id})",
+                )
+            choice = choices[0]
+            finish_reason = choice.finish_reason or "unknown"
+            if choice.message is None:
+                raise ProviderResponseError(
+                    provider="azure",
+                    endpoint=config.endpoint,
+                    details=f"Missing message in choice (finish_reason={finish_reason})",
+                )
+            content = choice.message.content
             if not content:
                 raise ProviderResponseError(
                     provider="azure",
                     endpoint=config.endpoint,
-                    details="Empty content in response",
+                    details=f"Empty content in response (finish_reason={finish_reason})",
                 )
             return content
 
