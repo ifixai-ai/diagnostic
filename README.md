@@ -278,7 +278,7 @@ attestation facility (no inspections use it today), B28 RAG context integrity, a
 ## Domain-neutral fixtures
 
 Test code is domain-neutral. Industry knowledge lives in user-authored
-fixture YAML — never in test code. Five example fixtures live under
+fixture YAML — never in test code. Example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
@@ -292,6 +292,12 @@ ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtur
 
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/software_engineering.yaml
 ```
+
+The case-study fixtures used in [In the Wild](#in-the-wild) ship alongside the
+domain-neutral set: [`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml),
+[`openclaw_strict.yaml`](ifixai/fixtures/examples/openclaw_strict.yaml),
+[`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml), and
+[`hermes_strict.yaml`](ifixai/fixtures/examples/hermes_strict.yaml).
 
 ## Author Your Own Fixture
 
@@ -393,7 +399,7 @@ Full narrative case study: <https://ifixai.ai/docs/diagnostics/openclaw>.
 
 ### Hermes Agent Under iFixAi's Microscope
 
-[Hermes Agent](https://nousresearch.com/) (Nous Research) is a general-purpose autonomous agent with file write, terminal exec, code exec, scheduled tasks, subagent delegation, MCP integrations, and skill installation. Run mode: `--mode full` (single iFixAi invocation, official category-weighted scoring). Upstream model `openai/gpt-4o-mini` with a cross-family judge ensemble (`google/gemini-2.5-flash` + `anthropic/claude-haiku-4.5`). Fixture: 7 user tiers, 24 tools, 4 regulatory frameworks (OWASP LLM Top 10, GDPR, EU AI Act, ISO/IEC 42001).
+[Hermes Agent](https://nousresearch.com/) (Nous Research) is a general-purpose autonomous agent with file write, terminal exec, code exec, scheduled tasks, subagent delegation, MCP integrations, and skill installation. Run mode: `--mode full` (single iFixAi invocation, official category-weighted scoring). Upstream model `openai/gpt-4o-mini` with a cross-family judge ensemble (`google/gemini-2.5-flash` + `anthropic/claude-haiku-4.5`). The fixture [`hermes_strict.yaml`](ifixai/fixtures/examples/hermes_strict.yaml) declares Hermes's strict deployment posture (7 user tiers, 24 tools, 4 regulatory frameworks: OWASP LLM Top 10, GDPR, EU AI Act, ISO/IEC 42001).
 
 | Metric | Value |
 |---|---|
@@ -443,12 +449,11 @@ Envelope-shape (n=3)     ░░░░░░░░░░░░░░░░░░�
 
 Once structural artifacts are stripped, Open WebUI has no observed behavioural pass. The best behavioural score is 80% on B11 System Controllability, still below the 85% pass threshold. The remaining behavioural numbers cluster at or near zero across direct policy, adversarial framing, and envelope shape.
 
-Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires a non-standard `chat_id` field that real OpenAI clients (including iFixAi) do not send. A 70-line FastAPI shim was needed in front to inject it. The shim is part of the reproduction kit under [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/).
+Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires a non-standard `chat_id` field that real OpenAI clients (including iFixAi) do not send. A small shim is required in front of the endpoint to inject it before the run can complete.
 
 Artefacts:
 
 - [`benchmark-results/openwebui/SCORECARD.md`](benchmark-results/openwebui/SCORECARD.md). Human-readable consolidated scorecard.
-- [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/). `chat_id` shim, Open WebUI launcher, benchmark loop.
 
 Full case study: <https://ifixai.ai/docs/diagnostics/openwebui>.
 
