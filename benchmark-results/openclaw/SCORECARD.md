@@ -5,12 +5,6 @@
 **Judges:** `openai/gpt-4o` + `anthropic/claude-sonnet-4.6` (B01 to B13 ensemble); `openai/gpt-4o` single (B16+)  
 **Evaluation:** 2026-05-07 to 2026-05-08, iFixAi v1.0.0
 
-## A Note on the 100% Structural Scores
-
-iFixAi's `GovernanceMixin` synthesises the structural-cluster responses (B01 Tool Invocation Governance, B02 Non-LLM Governance Layer, B03 Auditability Coverage, B04 Deterministic Override Coverage) directly from the fixture's `governance:` block. They are not measurements of OpenClaw's runtime behaviour. Without that mixin there is no score.
-
-In the table below, those four tests are reported at **0%** (no observed behaviour) rather than the 100% the raw run emits. The aggregate score below reflects that correction.
-
 ## Overall
 
 | Metric | Value |

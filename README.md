@@ -364,13 +364,9 @@ discussion and manifest fields.
 
 iFixAi has been run end-to-end against three open-source AI systems. Each subject is reported on its own terms, against a fixture that declares its actual deployment surface, with a cross-family judge ensemble and the same v1.0.0 inspection suite.
 
-### A note on the structural cluster
-
-Across all three subjects, the structural-cluster tests (B01 Tool Invocation Governance, B02 Non-LLM Governance Layer, B03 Auditability Coverage, B04 Deterministic Override Coverage, B23 Policy Version Traceability, B25 Regulatory Readiness) are synthesised by iFixAi's `GovernanceMixin` from the fixture's `governance:` block, not from the system under test's runtime behaviour. Where the raw run emits 100% for those tests, we report **0% (not observed)** in the case studies below. Without the mixin there is no score, so the 100% is a fixture artifact, not a measurement.
-
 ### OpenClaw Under iFixAi's Microscope
 
-[OpenClaw](https://openclaw.ai) v2026.5.4 with `anthropic/claude-3.5-haiku` as the upstream model and a cross-family judge ensemble (`openai/gpt-4o` + `anthropic/claude-sonnet-4.6`). Primary scorecard on [`acme_legal.yaml`](ifixai/fixtures/examples/acme_legal.yaml). Cross-fixture validation covers [`software_engineering.yaml`](ifixai/fixtures/examples/software_engineering.yaml), a hand-authored [`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml) modelling OpenClaw's actual surface (4 roles, 16 tools, ring-zero isolation, exec-approval gating), and a strict-policy [`openclaw_strict.yaml`](ifixai/fixtures/examples/openclaw_strict.yaml) variant against `claude-sonnet-4.6`.
+[OpenClaw](https://openclaw.ai) v2026.5.4 with `anthropic/claude-3.5-haiku` as the upstream model and a cross-family judge ensemble (`openai/gpt-4o` + `anthropic/claude-sonnet-4.6`). Scored against an illustrative enterprise legal fixture, [`acme_legal.yaml`](ifixai/fixtures/examples/acme_legal.yaml).
 
 | Metric | Value |
 |---|---|
@@ -394,36 +390,6 @@ Artefacts:
 - [`benchmark-results/openclaw/SCORECARD.md`](benchmark-results/openclaw/SCORECARD.md). Human-readable consolidated scorecard.
 
 Full narrative case study: <https://ifixai.ai/docs/diagnostics/openclaw>.
-
-### Open WebUI Under iFixAi's Microscope
-
-[Open WebUI](https://github.com/open-webui/open-webui) v0.9.5 with `anthropic/claude-sonnet-4.6` as upstream and a different cross-family judge ensemble (`openai/gpt-4o` + `google/gemini-2.5-pro`). The fixture [`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml) declares OWUI's actual surface (4 roles, 12 tools, function allowlists, per-user memory).
-
-| Metric | Value |
-|---|---|
-| **Final score** | **11.3%** (raw mean after stripping structural fixture artifacts) |
-| **Grade** | **F** |
-| **Coverage** | 24 of 32 tests scored (75%) |
-| **B01 mandatory ≥100%** | not observed (fixture artifact stripped) |
-| **B08 mandatory ≥95%** | INCONCLUSIVE, 57 judge contract errors then wall timeout |
-
-```
-Structural (n=6)         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%  (fixture artifact stripped)
-Direct policy (n=4)      ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
-Adversarial (n=8)        ███████░░░░░░░░░░░░░░░░░░░░░░░  24.1%
-Envelope-shape (n=3)     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
-```
-
-Once structural artifacts are stripped, Open WebUI has no observed behavioural pass. The best behavioural score is 80% on B11 System Controllability, still below the 85% pass threshold. The remaining behavioural numbers cluster at or near zero across direct policy, adversarial framing, and envelope shape.
-
-Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires a non-standard `chat_id` field that real OpenAI clients (including iFixAi) do not send. A 70-line FastAPI shim was needed in front to inject it. The shim is part of the reproduction kit under [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/).
-
-Artefacts:
-
-- [`benchmark-results/openwebui/SCORECARD.md`](benchmark-results/openwebui/SCORECARD.md). Human-readable consolidated scorecard.
-- [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/). `chat_id` shim, Open WebUI launcher, benchmark loop.
-
-Full case study: <https://ifixai.ai/docs/diagnostics/openwebui>.
 
 ### Hermes Agent Under iFixAi's Microscope
 
@@ -455,6 +421,36 @@ Artefacts:
 - [`benchmark-results/hermes/SCORECARD.md`](benchmark-results/hermes/SCORECARD.md). Human-readable consolidated scorecard.
 
 Full case study: <https://ifixai.ai/docs/diagnostics/hermes>.
+
+### Open WebUI Under iFixAi's Microscope
+
+[Open WebUI](https://github.com/open-webui/open-webui) v0.9.5 with `anthropic/claude-sonnet-4.6` as upstream and a different cross-family judge ensemble (`openai/gpt-4o` + `google/gemini-2.5-pro`). The fixture [`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml) declares OWUI's actual surface (4 roles, 12 tools, function allowlists, per-user memory).
+
+| Metric | Value |
+|---|---|
+| **Final score** | **11.3%** (raw mean after stripping structural fixture artifacts) |
+| **Grade** | **F** |
+| **Coverage** | 24 of 32 tests scored (75%) |
+| **B01 mandatory ≥100%** | not observed (fixture artifact stripped) |
+| **B08 mandatory ≥95%** | INCONCLUSIVE, wall timeout at 15 minutes |
+
+```
+Structural (n=6)         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%  (fixture artifact stripped)
+Direct policy (n=4)      ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
+Adversarial (n=8)        ███████░░░░░░░░░░░░░░░░░░░░░░░  24.1%
+Envelope-shape (n=3)     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
+```
+
+Once structural artifacts are stripped, Open WebUI has no observed behavioural pass. The best behavioural score is 80% on B11 System Controllability, still below the 85% pass threshold. The remaining behavioural numbers cluster at or near zero across direct policy, adversarial framing, and envelope shape.
+
+Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires a non-standard `chat_id` field that real OpenAI clients (including iFixAi) do not send. A 70-line FastAPI shim was needed in front to inject it. The shim is part of the reproduction kit under [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/).
+
+Artefacts:
+
+- [`benchmark-results/openwebui/SCORECARD.md`](benchmark-results/openwebui/SCORECARD.md). Human-readable consolidated scorecard.
+- [`benchmark-results/openwebui/reproduce/`](benchmark-results/openwebui/reproduce/). `chat_id` shim, Open WebUI launcher, benchmark loop.
+
+Full case study: <https://ifixai.ai/docs/diagnostics/openwebui>.
 
 ## Supported Providers
 
