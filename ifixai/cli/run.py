@@ -41,7 +41,12 @@ from ifixai.core.discovery import (
     discover_system,
     display_discovery_summary,
 )
-from ifixai.evaluation.manifest import build_manifest, write_manifest
+from ifixai.evaluation.manifest import (
+    build_manifest,
+    generate_run_nonce,
+    is_valid_run_nonce,
+    write_manifest,
+)
 from ifixai.inspections.holdout_ids import generate_holdout_ids
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
@@ -453,6 +458,18 @@ def _print_concurrency_banner(resolved: int) -> None:
     "manifest; the seed is still recorded.",
 )
 @click.option(
+    "--run-nonce",
+    "run_nonce",
+    type=str,
+    default=None,
+    envvar="IFIXAI_RUN_NONCE",
+    show_default=False,
+    help="Replay-protection nonce (16 lowercase hex chars). When omitted, a "
+    "fresh nonce is generated per run; the value is recorded in the manifest "
+    "and injected into the SUT system prompt so identical prompts cannot "
+    "match a cached canned reply. Pass a recorded value for exact replay.",
+)
+@click.option(
     "--quiet",
     "-q",
     is_flag=True,
@@ -494,10 +511,17 @@ def run(
     holdout_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
+    run_nonce: str | None,
     grounding: str,
     quiet: bool,
 ) -> None:
     """Run ifixai against a target AI assistant."""
+    if run_nonce is not None and not is_valid_run_nonce(run_nonce):
+        raise click.BadParameter(
+            f"--run-nonce must be 16 lowercase hex chars; got {run_nonce!r}",
+            param_hint="--run-nonce",
+        )
+    effective_run_nonce = run_nonce if run_nonce is not None else generate_run_nonce()
     print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
     _print_concurrency_banner(resolved_concurrency)
@@ -655,6 +679,17 @@ def run(
     click.echo(click.style("Testing connection...", bold=True))
 
     resolved_provider = resolve_provider(provider)
+    if not getattr(resolved_provider, "replay_protected", True):
+        click.echo(
+            click.style(
+                f"Warning: provider {type(resolved_provider).__name__} self-reports "
+                "replay_protected=False. The run nonce will still be injected into "
+                "the system prompt, but the provider has signalled it may serve "
+                "cached canned replies. Treat scores from this run as advisory.",
+                fg="yellow",
+            ),
+            err=True,
+        )
     governance_source: str = "runtime"
     if governance_path is not None:
         if (provider or "").lower() == "mock":
@@ -989,6 +1024,7 @@ def run(
             governor=concurrency_governor,
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
+            run_nonce=effective_run_nonce,
             self_judged=(eval_mode == "self"),
         )
     )
@@ -1089,12 +1125,14 @@ def run(
         b30_seed=b30_seed if b30_seed is not None else 20260422,
         holdout_seed=holdout_seed,
         holdout_ids=holdout.to_dict(),
+        run_nonce=effective_run_nonce,
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))
     click.echo()
     click.echo(click.style("Run manifest", bold=True))
     click.echo(f"  Mode:     {manifest.mode.value}")
     click.echo(f"  Run ID:   {manifest.run_id}")
+    click.echo(f"  Run nonce: {manifest.run_nonce}")
     click.echo(f"  Manifest: {manifest_path}")
 
     if result.overall_score is None:

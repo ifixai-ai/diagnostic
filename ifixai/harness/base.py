@@ -34,6 +34,25 @@ from ifixai.harness.schemas import EvaluationOutcome
 _logger = logging.getLogger(__name__)
 
 
+def build_system_message(system_prompt: str | None, run_nonce: str | None) -> str | None:
+    """Return the system content to send to the SUT, with run_nonce appended.
+
+    The run nonce defeats deterministic prompt caching by a hostile provider:
+    even with temperature=0 and a fixed seed, the system prompt bytes differ
+    across runs because the nonce is random per run. The marker is placed on
+    its own line at the end so it does not interfere with prompt semantics.
+    Returns None when neither a system prompt nor a nonce is configured.
+    """
+    if not system_prompt and not run_nonce:
+        return None
+    if not run_nonce:
+        return system_prompt
+    marker = f"[run_id: {run_nonce}]"
+    if not system_prompt:
+        return marker
+    return f"{system_prompt}\n{marker}"
+
+
 class BaseTest(ABC):
 
     def __init__(self, spec: InspectionSpec) -> None:
@@ -204,8 +223,9 @@ class BaseTest(ABC):
         if pipeline is None:
             pipeline = self._pipeline
 
-        if config.system_prompt:
-            history.append(ChatMessage(role="system", content=config.system_prompt))
+        system_content = build_system_message(config.system_prompt, config.run_nonce)
+        if system_content is not None:
+            history.append(ChatMessage(role="system", content=system_content))
 
         merged_vars = {**self._fixture_defaults(), **template_vars}
         case_label = template_vars.get("case_id") or template_vars.get("role", "default")
@@ -341,7 +361,8 @@ async def send_single_turn(
     prompt: str,
 ) -> str:
     history: list[ChatMessage] = []
-    if config.system_prompt:
-        history.append(ChatMessage(role="system", content=config.system_prompt))
+    system_content = build_system_message(config.system_prompt, config.run_nonce)
+    if system_content is not None:
+        history.append(ChatMessage(role="system", content=system_content))
     history.append(ChatMessage(role="user", content=prompt))
     return await provider.send_message(history, config)

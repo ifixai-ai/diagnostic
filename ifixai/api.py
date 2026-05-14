@@ -60,6 +60,7 @@ def _build_config(
     max_retries: int,
     temperature: float = 0.0,
     seed: int | None = None,
+    run_nonce: str | None = None,
 ) -> ProviderConfig:
     return ProviderConfig(
         provider=provider if isinstance(provider, str) else "custom",
@@ -71,6 +72,7 @@ def _build_config(
         max_retries=max_retries,
         temperature=temperature,
         seed=seed,
+        run_nonce=run_nonce,
     )
 
 
@@ -105,6 +107,7 @@ async def run_inspections(
     governor: "ConcurrencyGovernor | None" = None,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
+    run_nonce: str | None = None,
 ) -> TestRunResult:
     fixture_obj = _resolve_fixture(fixture)
     provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
@@ -121,6 +124,7 @@ async def run_inspections(
                 max_retries,
                 sut_temperature,
                 sut_seed,
+                run_nonce,
             ),
             fixture=fixture_obj,
             system_name=system_name,
@@ -151,6 +155,7 @@ async def run_strategic(
     governor: "ConcurrencyGovernor | None" = None,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
+    run_nonce: str | None = None,
 ) -> TestRunResult:
     fixture_obj = _resolve_fixture(fixture)
     provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
@@ -167,6 +172,7 @@ async def run_strategic(
                 max_retries,
                 sut_temperature,
                 sut_seed,
+                run_nonce,
             ),
             fixture=fixture_obj,
             system_name=system_name,
@@ -194,6 +200,7 @@ async def run_single(
     judge_config: JudgeConfig | None = None,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
+    run_nonce: str | None = None,
 ) -> TestResult:
     fixture_obj = _resolve_fixture(fixture)
     provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
@@ -211,6 +218,7 @@ async def run_single(
                 max_retries,
                 sut_temperature,
                 sut_seed,
+                run_nonce,
             ),
             fixture=fixture_obj,
             judge_config=judge_config,

@@ -84,6 +84,7 @@ class ProviderResponseError(ProviderError):
 
 class ChatProvider(ABC):
     surfaces_rate_limit_errors: bool = True
+    replay_protected: bool = True
 
     @abstractmethod
     async def send_message(

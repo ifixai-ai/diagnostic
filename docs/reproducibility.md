@@ -24,9 +24,23 @@ The algorithm is pinned. Any future change is a breaking change to the manifest 
 
 The all-zero sentinel (`"0" * 64`) is rejected at model-validation time. If you see it in a manifest, that manifest is not reproducible — regenerate.
 
+## The run nonce
+
+The manifest's `run_nonce` is a 16-char lowercase hex string generated per run via `secrets.token_hex(8)`. It defends against a hostile provider that caches `(prompt_hash) → canned reply` under deterministic mode (`temperature=0`, fixed seed): even with all sampling parameters fixed, the nonce changes the bytes of the SUT system prompt every run, so a cache keyed on prompt hash cannot match across runs.
+
+The nonce is appended on its own line to the SUT system prompt as `[run_id: <nonce>]` immediately before sending. It is recorded in the manifest **in full** — not redacted — because exact replay requires the original value.
+
+To enable exact replay against a deterministic provider, pass the recorded value:
+
+```bash
+ifixai run ... --run-nonce <16-hex-from-prior-manifest>
+```
+
+`ChatProvider.replay_protected` (default `True`) is a self-reported flag a provider can flip to `False` to advertise that it does not implement replay protection. The harness uses this only as a signal in the manifest and scorecard; the run-level nonce is applied unconditionally.
+
 ## The run ID
 
-`run_id` is a 16-char sha256 hex of the manifest's canonicalised payload, excluding `run_id` itself and `timestamp`. Two runs with identical inputs produce the same `run_id`. This is what makes the manifest "content-addressed".
+`run_id` is a 16-char sha256 hex of the manifest's canonicalised payload, excluding `run_id` itself and `timestamp`. The payload includes both `schema_version` and `run_nonce`, so two default runs with otherwise identical inputs produce **different** `run_id`s by design (the nonce is fresh per run). Pass `--run-nonce` to pin the value if exact replay against a deterministic provider is required.
 
 ## Masked non-deterministic fields
 
@@ -43,17 +57,27 @@ Byte-identity across replay assertions excludes the following fields, which are 
 - **Reproducibility is conditional on the judge set.** Changing the judge provider or judge model changes the manifest and therefore the `run_id`, even if the model-under-test's outputs are identical.
 - **Rubric hashes, test versions, and the normaliser version are all pinned.** Any upgrade of any of these produces a new `run_id`; this is intentional — it forces auditors to notice the upgrade.
 
+## Manifest schema versioning
+
+The manifest carries a `schema_version` integer. The current version is **2** (H4: run-nonce). Version **1** manifests predate the nonce field; `load_manifest()` accepts them, emits a `DeprecationWarning`, and synthesises `run_nonce=""`. `verify_run_id()` is version-aware: for a v1 manifest it recomputes the legacy payload (without `schema_version` and `run_nonce`) so the stored `run_id` still verifies. v1 manifests do not carry replay protection — regenerate them to enable it.
+
 ## Replaying a run
 
 There is no dedicated `replay` CLI command. The internal API supports it directly:
 
 ```python
-from ifixai.evaluation.manifest import RunManifest, verify_run_id
+from ifixai.evaluation.manifest import load_manifest, verify_run_id
 from ifixai.utils.fixture_digest import verify_fixture_digest
 
-manifest = RunManifest.model_validate_json(open("runs/<run_id>/manifest.json").read())
+manifest = load_manifest(Path("runs/<run_id>/manifest.json"))
 assert verify_run_id(manifest), "manifest has been tampered with"
 assert verify_fixture_digest(fixture_path, manifest.fixture_digest), "fixture has been edited"
+```
+
+Re-run with the same nonce to reproduce against a deterministic provider:
+
+```bash
+ifixai run ... --run-nonce $(jq -r .run_nonce runs/<run_id>/manifest.json)
 ```
 
 With a deterministic provider that returns a pre-recorded response table, re-running against the same manifest produces a byte-identical scorecard modulo the masked fields listed above.

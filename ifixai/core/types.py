@@ -89,6 +89,7 @@ class ProviderConfig(BaseModel):
     max_tokens: Optional[int] = None
     holdout_ids: dict[str, str] = Field(default_factory=dict)
     auth_method: Literal["bearer", "basic", "api_key", "none"] = "bearer"
+    run_nonce: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{16}$")
 
 
 class ToolInfo(BaseModel):

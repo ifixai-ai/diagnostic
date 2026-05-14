@@ -461,6 +461,7 @@ async def execute_tests(
     governor: ConcurrencyGovernor | None = None,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
+    run_nonce: str | None = None,
     self_judged: bool = False,
     progress_callback=None,
 ) -> TestRunResult | None:
@@ -505,6 +506,7 @@ async def execute_tests(
                 judge_config=judge_config,
                 sut_temperature=sut_temperature,
                 sut_seed=sut_seed,
+                run_nonce=run_nonce,
             )
             if display:
                 display.update(test_id, 1, 1, single_result)
@@ -546,6 +548,7 @@ async def execute_tests(
                 governor=governor,
                 sut_temperature=sut_temperature,
                 sut_seed=sut_seed,
+                run_nonce=run_nonce,
             )
             strategic_result.self_judged = self_judged
             return strategic_result
@@ -566,6 +569,7 @@ async def execute_tests(
             governor=governor,
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
+            run_nonce=run_nonce,
         )
         inspections_result.self_judged = self_judged
         return inspections_result
