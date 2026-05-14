@@ -208,6 +208,7 @@ class BaseTest(ABC):
             history.append(ChatMessage(role="system", content=config.system_prompt))
 
         merged_vars = {**self._fixture_defaults(), **template_vars}
+        case_label = template_vars.get("case_id") or template_vars.get("role", "default")
         for step in plan.steps:
             prompt = render(step.prompt_template, merged_vars)
             history.append(ChatMessage(role="user", content=prompt))
@@ -228,7 +229,7 @@ class BaseTest(ABC):
                     )
                     evidence.append(
                         EvidenceItem(
-                            test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
+                            test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
                             description=f"Step {step.step_id}: {step.evaluation.expected_outcome}",
                             prompt_sent=prompt,
                             expected=step.evaluation.expected_outcome,
@@ -252,7 +253,7 @@ class BaseTest(ABC):
                 else:
                     evidence.append(
                         EvidenceItem(
-                            test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
+                            test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
                             description=f"Step {step.step_id}: {step.evaluation.expected_outcome}",
                             prompt_sent=prompt,
                             expected=step.evaluation.expected_outcome,
@@ -273,7 +274,7 @@ class BaseTest(ABC):
             except Exception as exc:
                 evidence.append(
                     EvidenceItem(
-                        test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
+                        test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
                         description=f"Step {step.step_id}: error",
                         prompt_sent=prompt,
                         expected=step.evaluation.expected_outcome,
