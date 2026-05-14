@@ -1,3 +1,4 @@
+import logging
 
 from ifixai._version import VERSION as __version__  # noqa: F401
 from ifixai.harness.registry import ALL_SPECS
@@ -7,7 +8,11 @@ from ifixai.judge.config import JudgeConfig
 from ifixai.providers.base import ChatProvider
 from ifixai.providers.resolver import resolve_provider, wrap_with_governance
 from ifixai.reporting.comparison import compare_scorecards as _compare_scorecards
-from ifixai.core.runner import run_all, run_single as _run_single, run_strategic as _run_strategic
+from ifixai.core.runner import (
+    run_all,
+    run_single as _run_single,
+    run_strategic as _run_strategic,
+)
 from ifixai.core.types import (
     TestResult,
     InspectionSpec,
@@ -17,6 +22,8 @@ from ifixai.core.types import (
     ProviderConfig,
     TestRunResult,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def _resolve_fixture(fixture: str | Fixture) -> Fixture:
@@ -67,6 +74,20 @@ def _build_config(
     )
 
 
+async def _aclose_provider(provider_obj: ChatProvider) -> None:
+    """Best-effort teardown for the SUT provider's shared HTTP/SDK pool.
+
+    Called from the api-level try/finally so the provider's connection
+    pool is closed even when an inspection raises mid-run. We log and
+    swallow because teardown failures must not mask the original error
+    that the caller is propagating.
+    """
+    try:
+        await provider_obj.aclose()
+    except Exception:
+        _logger.exception("Provider teardown failed during aclose")
+
+
 async def run_inspections(
     provider: str | ChatProvider,
     fixture: str | Fixture = "default",
@@ -86,17 +107,31 @@ async def run_inspections(
     sut_seed: int | None = None,
 ) -> TestRunResult:
     fixture_obj = _resolve_fixture(fixture)
-    return await run_all(
-        provider=_resolve_provider_with_governance(provider, fixture_obj),
-        config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=fixture_obj,
-        system_name=system_name,
-        system_version=system_version,
-        progress_callback=progress_callback,
-        judge_config=judge_config,
-        pipeline_config=pipeline_config,
-        governor=governor,
-    )
+    provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
+    try:
+        return await run_all(
+            provider=provider_obj,
+            config=_build_config(
+                provider,
+                api_key,
+                endpoint,
+                model,
+                system_prompt,
+                timeout,
+                max_retries,
+                sut_temperature,
+                sut_seed,
+            ),
+            fixture=fixture_obj,
+            system_name=system_name,
+            system_version=system_version,
+            progress_callback=progress_callback,
+            judge_config=judge_config,
+            pipeline_config=pipeline_config,
+            governor=governor,
+        )
+    finally:
+        await _aclose_provider(provider_obj)
 
 
 async def run_strategic(
@@ -118,17 +153,31 @@ async def run_strategic(
     sut_seed: int | None = None,
 ) -> TestRunResult:
     fixture_obj = _resolve_fixture(fixture)
-    return await _run_strategic(
-        provider=_resolve_provider_with_governance(provider, fixture_obj),
-        config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=fixture_obj,
-        system_name=system_name,
-        system_version=system_version,
-        progress_callback=progress_callback,
-        judge_config=judge_config,
-        pipeline_config=pipeline_config,
-        governor=governor,
-    )
+    provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
+    try:
+        return await _run_strategic(
+            provider=provider_obj,
+            config=_build_config(
+                provider,
+                api_key,
+                endpoint,
+                model,
+                system_prompt,
+                timeout,
+                max_retries,
+                sut_temperature,
+                sut_seed,
+            ),
+            fixture=fixture_obj,
+            system_name=system_name,
+            system_version=system_version,
+            progress_callback=progress_callback,
+            judge_config=judge_config,
+            pipeline_config=pipeline_config,
+            governor=governor,
+        )
+    finally:
+        await _aclose_provider(provider_obj)
 
 
 async def run_single(
@@ -147,17 +196,33 @@ async def run_single(
     sut_seed: int | None = None,
 ) -> TestResult:
     fixture_obj = _resolve_fixture(fixture)
-    return await _run_single(
-        test_id=test_id,
-        provider=_resolve_provider_with_governance(provider, fixture_obj),
-        config=_build_config(provider, api_key, endpoint, model, system_prompt, timeout, max_retries, sut_temperature, sut_seed),
-        fixture=fixture_obj,
-        judge_config=judge_config,
-        pipeline_config=pipeline_config,
-    )
+    provider_obj = _resolve_provider_with_governance(provider, fixture_obj)
+    try:
+        return await _run_single(
+            test_id=test_id,
+            provider=provider_obj,
+            config=_build_config(
+                provider,
+                api_key,
+                endpoint,
+                model,
+                system_prompt,
+                timeout,
+                max_retries,
+                sut_temperature,
+                sut_seed,
+            ),
+            fixture=fixture_obj,
+            judge_config=judge_config,
+            pipeline_config=pipeline_config,
+        )
+    finally:
+        await _aclose_provider(provider_obj)
 
 
-def compare_scorecards(baseline: TestRunResult, enhanced: TestRunResult) -> ComparisonReport:
+def compare_scorecards(
+    baseline: TestRunResult, enhanced: TestRunResult
+) -> ComparisonReport:
     return _compare_scorecards(baseline, enhanced)
 
 

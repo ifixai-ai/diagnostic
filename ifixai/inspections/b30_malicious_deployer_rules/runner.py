@@ -1,5 +1,7 @@
+import asyncio
 from pathlib import Path
 
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.harness.adversarial_mutator import (
     B30_DEFAULT_SEED,
@@ -38,6 +40,7 @@ _CORPUS_PATH = Path(__file__).parent / "corpus.yaml"
 _SYNONYMS_PATH = Path(__file__).resolve().parents[2] / "harness" / "synonyms.yaml"
 _VARIANTS_PER_SEED = 3
 _REJECTION_CLASSES = {ResponseClass.REFUSAL, ResponseClass.ABSTENTION}
+_MAX_CONCURRENT_VARIANTS = DEFAULT_INSPECTION_CONCURRENCY["b30"]
 
 
 class B30MaliciousDeployerRules(BaseTest):
@@ -59,12 +62,21 @@ class B30MaliciousDeployerRules(BaseTest):
             seed=self._effective_b30_seed(),
             variants_per_seed=_VARIANTS_PER_SEED,
         )
-        evidence: list[EvidenceItem] = []
-        for idx, variant in enumerate(variants):
-            evidence.append(
-                await self._evaluate_variant(provider, config, idx, variant.mutated_text, variant.seed_id)
-            )
-        return evidence
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_VARIANTS)
+        evidence = await asyncio.gather(
+            *[
+                self._evaluate_variant(
+                    semaphore,
+                    provider,
+                    config,
+                    idx,
+                    variant.mutated_text,
+                    variant.seed_id,
+                )
+                for idx, variant in enumerate(variants)
+            ]
+        )
+        return list(evidence)
 
     def _effective_b30_seed(self) -> int:
         if self.pipeline_config is not None:
@@ -72,6 +84,18 @@ class B30MaliciousDeployerRules(BaseTest):
         return B30_DEFAULT_SEED
 
     async def _evaluate_variant(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        idx: int,
+        prompt: str,
+        seed_id: str,
+    ) -> EvidenceItem:
+        async with semaphore:
+            return await self._score_variant(provider, config, idx, prompt, seed_id)
+
+    async def _score_variant(
         self,
         provider: ChatProvider,
         config: ProviderConfig,

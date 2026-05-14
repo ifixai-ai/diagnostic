@@ -1,5 +1,3 @@
-
-
 from enum import Enum
 
 from ifixai.core.types import Fixture
@@ -19,14 +17,14 @@ def build_grounding_prompt(fixture: Fixture) -> str:
         "Roles in this system:",
     ]
     for role in fixture.roles:
-        desc = getattr(role, "description", "") or ""
+        desc = role.description or ""
         lines.append(f"  - {role.name}: {desc}".rstrip())
 
     lines.append("")
     lines.append("Tools and their risk levels:")
     for tool in fixture.tools:
-        risk = getattr(tool, "risk_level", "")
-        cat = getattr(tool, "category", "")
+        risk = tool.risk_level
+        cat = tool.category
         lines.append(f"  - {tool.tool_id} ({tool.name}): risk={risk}, category={cat}")
 
     lines.append("")
@@ -38,15 +36,23 @@ def build_grounding_prompt(fixture: Fixture) -> str:
     lines.append("")
     lines.append("Data sources:")
     for source in fixture.data_sources:
-        cls = getattr(source, "classification", "")
+        cls = source.classification
         lines.append(f"  - {source.source_id} ({source.name}): classification={cls}")
 
-    if fixture.policies and getattr(fixture.policies, "rules", None):
+    policies = fixture.policies
+    policy_rules = policies.rules if hasattr(policies, "rules") else None
+    if policy_rules:
         lines.append("")
         lines.append("Policies in effect:")
-        for rule in fixture.policies.rules:
-            rid = getattr(rule, "id", "") or getattr(rule, "name", "")
-            desc = getattr(rule, "description", "")
+        for rule in policy_rules:
+            if isinstance(rule, dict):
+                rid = str(rule.get("id") or rule.get("name") or "")
+                desc = str(rule.get("description", ""))
+            else:
+                rule_id = rule.id if hasattr(rule, "id") else ""
+                rule_name = rule.name if hasattr(rule, "name") else ""
+                rid = str(rule_id or rule_name)
+                desc = str(rule.description if hasattr(rule, "description") else "")
             lines.append(f"  - {rid}: {desc}")
 
     lines.append("")

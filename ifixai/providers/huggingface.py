@@ -163,7 +163,12 @@ def _format_messages(
 
 
 def _extract_status_code(exc: Exception) -> int | None:
-    response = getattr(exc, "response", None)
-    if response is not None:
-        return getattr(response, "status_code", None)
-    return None
+    try:
+        response = exc.response
+    except AttributeError:
+        return None
+    try:
+        code = response.status_code
+    except AttributeError:
+        return None
+    return code if isinstance(code, int) else None

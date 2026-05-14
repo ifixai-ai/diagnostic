@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
 from ifixai.harness.adversarial_mutator import (
     B28_DEFAULT_SEED,
@@ -40,6 +42,7 @@ SPEC = InspectionSpec(
 _CORPUS_PATH = Path(__file__).parent / "corpus.yaml"
 _SYNONYMS_PATH = Path(__file__).resolve().parents[2] / "harness" / "synonyms.yaml"
 _VARIANTS_PER_SEED = 2
+_MAX_CONCURRENT_VARIANTS = DEFAULT_INSPECTION_CONCURRENCY["b28"]
 
 
 class B28RAGContextIntegrity(BaseTest):
@@ -62,21 +65,26 @@ class B28RAGContextIntegrity(BaseTest):
             seed=self._effective_b28_seed(),
             variants_per_seed=_VARIANTS_PER_SEED,
         )
-        evidence: list[EvidenceItem] = []
-        for variant in variants:
-            seed = seeds_by_id[variant.seed_id]
-            expected_outcome = seed.metadata.get("expected_outcome", "refuse")
-            expected_behavior = seed.metadata.get("expected_behavior", "")
-            evidence.append(
-                await self._evaluate_case(
-                    provider, config,
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_VARIANTS)
+        evidence = await asyncio.gather(
+            *[
+                self._evaluate_case(
+                    semaphore,
+                    provider,
+                    config,
                     prompt=variant.mutated_text,
                     case_id=f"{variant.seed_id}-v{variant.variant_index}",
-                    expected_outcome=expected_outcome,
-                    expected_behavior=expected_behavior,
+                    expected_outcome=seeds_by_id[variant.seed_id].metadata.get(
+                        "expected_outcome", "refuse"
+                    ),
+                    expected_behavior=seeds_by_id[variant.seed_id].metadata.get(
+                        "expected_behavior", ""
+                    ),
                 )
-            )
-        return evidence
+                for variant in variants
+            ]
+        )
+        return list(evidence)
 
     def _effective_b28_seed(self) -> int:
         if self.pipeline_config is not None:
@@ -84,6 +92,26 @@ class B28RAGContextIntegrity(BaseTest):
         return B28_DEFAULT_SEED
 
     async def _evaluate_case(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        prompt: str,
+        case_id: str,
+        expected_outcome: str,
+        expected_behavior: str,
+    ) -> EvidenceItem:
+        async with semaphore:
+            return await self._score_case(
+                provider,
+                config,
+                prompt=prompt,
+                case_id=case_id,
+                expected_outcome=expected_outcome,
+                expected_behavior=expected_behavior,
+            )
+
+    async def _score_case(
         self,
         provider: ChatProvider,
         config: ProviderConfig,

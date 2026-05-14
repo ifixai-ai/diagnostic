@@ -32,6 +32,9 @@ class JudgeEvaluator:
             "judge_provider": self._config.provider,
         }
 
+    async def aclose(self) -> None:
+        await self._provider.aclose()
+
 
 class EnsembleJudgeEvaluator:
 
@@ -66,6 +69,10 @@ class EnsembleJudgeEvaluator:
             "judge_provider": f"ensemble({len(self._evaluators)})",
             "per_judge_stats": per_judge_stats,
         }
+
+    async def aclose(self) -> None:
+        for evaluator in self._evaluators:
+            await evaluator.aclose()
 
 
 def _single_config_for(

@@ -1,5 +1,3 @@
-
-
 import asyncio
 
 import anthropic
@@ -20,23 +18,55 @@ DEFAULT_MODEL = "claude-sonnet-4-20250514"
 INITIAL_BACKOFF_SECONDS = 1.0
 BACKOFF_MULTIPLIER = 2.0
 
+ClientCacheKey = tuple[str | None, str | None, float]
+
 
 class AnthropicProvider(ChatProvider):
 
     def __init__(self) -> None:
-        pass
+        self._clients: dict[ClientCacheKey, anthropic.AsyncAnthropic] = {}
+        self._client_lock = asyncio.Lock()
+
+    async def get_client(self, config: ProviderConfig) -> anthropic.AsyncAnthropic:
+        """Return a long-lived AsyncAnthropic client keyed on connection params.
+
+        SDK-internal retries stay disabled (max_retries=0) because we run our
+        own exponential backoff loop in send_message. Sharing one client per
+        (endpoint, api_key, timeout) reuses the underlying httpx pool across
+        the run instead of paying TLS setup per LLM call.
+        """
+        key: ClientCacheKey = (
+            config.endpoint,
+            config.api_key,
+            float(config.timeout),
+        )
+        cached = self._clients.get(key)
+        if cached is not None:
+            return cached
+        async with self._client_lock:
+            cached = self._clients.get(key)
+            if cached is not None:
+                return cached
+            client = anthropic.AsyncAnthropic(
+                api_key=config.api_key,
+                base_url=config.endpoint,
+                timeout=float(config.timeout),
+                max_retries=0,
+            )
+            self._clients[key] = client
+            return client
+
+    async def aclose(self) -> None:
+        for client in self._clients.values():
+            await client.close()
+        self._clients.clear()
 
     async def send_message(
         self,
         messages: list[ChatMessage],
         config: ProviderConfig,
     ) -> str:
-        client = anthropic.AsyncAnthropic(
-            api_key=config.api_key,
-            base_url=config.endpoint,
-            timeout=float(config.timeout),
-            max_retries=0,
-        )
+        client = await self.get_client(config)
 
         model = config.model or DEFAULT_MODEL
         endpoint = config.endpoint or "https://api.anthropic.com"
@@ -69,9 +99,7 @@ class AnthropicProvider(ChatProvider):
                     )
 
                 text_parts = [
-                    block.text
-                    for block in content_blocks
-                    if block.type == "text"
+                    block.text for block in content_blocks if block.type == "text"
                 ]
                 if not text_parts:
                     raise ProviderResponseError(

@@ -115,6 +115,16 @@ def _resolve_rubric_path(test_id: str, outcome_type: str = "") -> Optional[Path]
     raise RuntimeError(f"Ambiguous rubric resolution for {test_id}: {matches}")
 
 
+def _read_rubric_file(path: Path) -> dict:
+    """Read and parse a rubric YAML file from disk.
+
+    Kept synchronous and called via asyncio.to_thread so the parse cost
+    never freezes the event loop while parallel inspections are running.
+    """
+    with open(path, encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
+
+
 async def load_analytic_rubric(
     test_id: str,
     outcome_type: str,
@@ -133,8 +143,7 @@ async def load_analytic_rubric(
             _rubric_cache[cache_key] = None
             return None
 
-        with open(path, encoding="utf-8") as fh:
-            raw = yaml.safe_load(fh)
+        raw = await asyncio.to_thread(_read_rubric_file, path)
 
         rubric = AnalyticRubric(**raw)
         _rubric_cache[cache_key] = rubric

@@ -1,5 +1,3 @@
-
-
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.rules.loader import RuleLoader
@@ -25,6 +23,7 @@ SPEC = InspectionSpec(
     weight=0.08,
     scoring_method="% Turns with Objective Maintained",
 )
+
 
 class B21CrossTurnObjective(BaseTest):
     """Inspection: set an objective, run an off-topic distraction, then
@@ -55,6 +54,7 @@ class B21CrossTurnObjective(BaseTest):
 
         return evidence
 
+
 def _tag_evidence_tier(items: list[EvidenceItem]) -> list[EvidenceItem]:
     tagged: list[EvidenceItem] = []
     for item in items:
@@ -65,7 +65,7 @@ def _tag_evidence_tier(items: list[EvidenceItem]) -> list[EvidenceItem]:
 
 
 def _build_template_vars(fixture: Fixture, user: object) -> dict[str, str]:
-    role = user.roles[0] if getattr(user, "roles", None) else "user"  # type: ignore[attr-defined]
+    role = user.roles[0] if user.roles else "user"  # type: ignore[attr-defined]
     tool = fixture.tools[0].name if fixture.tools else "general query"
     data_source = (
         fixture.data_sources[0].name if fixture.data_sources else "primary data store"

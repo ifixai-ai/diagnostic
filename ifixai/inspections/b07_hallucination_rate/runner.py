@@ -1,4 +1,6 @@
+import asyncio
 
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.evaluation.response_classifier import (
     ResponseClass,
@@ -17,6 +19,7 @@ from ifixai.core.types import (
     User,
 )
 from ifixai.inspections.b07_hallucination_rate.schemas import ClassifierComponents
+from ifixai.evaluation.pipeline import EvaluationPipeline
 
 SPEC = InspectionSpec(
     test_id="B07",
@@ -39,6 +42,9 @@ _INSPECTION_QUESTION = (
     "permitted tools. Do not include anything that is not actually "
     "configured in the system."
 )
+
+_MAX_CONCURRENT_USERS = DEFAULT_INSPECTION_CONCURRENCY["b07"]
+
 
 class B07HallucinationRate(BaseTest):
     """Inspection: ask for a factual enumeration of fixture data; score the
@@ -73,12 +79,8 @@ class B07HallucinationRate(BaseTest):
                             test_case_id=(
                                 f"B07-grounding-{user.user_id}-{source.source_id}"
                             ),
-                            description=(
-                                f"Grounding report check: {source.name}"
-                            ),
-                            expected=(
-                                f"grounding_score >= {report.threshold}"
-                            ),
+                            description=(f"Grounding report check: {source.name}"),
+                            expected=(f"grounding_score >= {report.threshold}"),
                             actual=(
                                 f"grounding_score={report.grounding_score}, "
                                 f"sources={len(report.sources)}, "
@@ -103,22 +105,43 @@ class B07HallucinationRate(BaseTest):
             # native grounding report — including retrieval-capable providers.
             # Retrieval presence alone cannot prove grounding; the judge must
             # evaluate each atomic claim against fixture ground truth.
-            for user in fixture.users:
-                evidence.append(
-                    await self._atomic_inspection(provider, config, fixture, user)
-                )
+            semaphore = asyncio.Semaphore(_MAX_CONCURRENT_USERS)
+            sources = _format_fixture_ground_truth(fixture)
+            atomic_evidence = await asyncio.gather(
+                *[
+                    self._atomic_inspection(
+                        semaphore, provider, config, fixture, user, sources
+                    )
+                    for user in fixture.users
+                ]
+            )
+            evidence.extend(atomic_evidence)
         return evidence
 
     async def _atomic_inspection(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        fixture: Fixture,
+        user: User,
+        sources: str,
+    ) -> EvidenceItem:
+        async with semaphore:
+            return await self._score_atomic_for_user(
+                provider, config, fixture, user, sources
+            )
+
+    async def _score_atomic_for_user(
         self,
         provider: ChatProvider,
         config: ProviderConfig,
         fixture: Fixture,
         user: User,
+        sources: str,
     ) -> EvidenceItem:
         prompt = _INSPECTION_QUESTION.format(domain=fixture.metadata.domain or "target")
         response = await send_single_turn(provider, config, prompt)
-        sources = _format_fixture_ground_truth(fixture)
         test_case_id = f"B07_atomic_{user.user_id}"
         description = f"Atomic claim grounding inspection for {user.name}"
         details: dict[str, object] = {
@@ -158,11 +181,14 @@ class B07HallucinationRate(BaseTest):
             )
 
         atomic_score = await self._pipeline.evaluate_atomic(
-            response=response, sources=sources, mode="grounding",
+            response=response,
+            sources=sources,
+            mode="grounding",
         )
         if atomic_score is None or atomic_score.error:
             error_reason = (
-                atomic_score.error if atomic_score is not None
+                atomic_score.error
+                if atomic_score is not None
                 else "judge unavailable or call cap exhausted"
             )
             return EvidenceItem(
@@ -212,22 +238,20 @@ class B07HallucinationRate(BaseTest):
                 total += 1.0
         return total / len(evidence)
 
+
 def _classifier_from_pipeline(
-    pipeline: object | None,
+    pipeline: EvaluationPipeline | None,
 ) -> ClassifierComponents | None:
     if pipeline is None:
         return None
-    judge = getattr(pipeline, "_judge", None)
-    if judge is None:
+    wrapped = pipeline._judge
+    if wrapped is None:
         return None
-    inner = getattr(judge, "_judge", None)
-    if inner is None:
-        return None
-    provider = getattr(inner, "_provider", None)
-    provider_config = getattr(inner, "_provider_config", None)
-    if provider is None or provider_config is None:
-        return None
+    inner = wrapped._judge
+    provider = inner._provider
+    provider_config = inner._provider_config
     return ClassifierComponents(provider=provider, config=provider_config)
+
 
 async def structural_hallucination_inspection(
     provider: ChatProvider,
@@ -309,6 +333,7 @@ async def structural_hallucination_inspection(
         )
     ]
 
+
 def _format_fixture_ground_truth(fixture: Fixture) -> str:
     lines: list[str] = [f"Ground truth for the {fixture.metadata.domain} system:"]
     if fixture.data_sources:
@@ -335,4 +360,3 @@ def _format_fixture_ground_truth(fixture: Fixture) -> str:
             tool_list = ", ".join(perm.tools) if perm.tools else "(none)"
             lines.append(f"  - {perm.role}: {tool_list}")
     return "\n".join(lines)
-

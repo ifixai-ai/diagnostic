@@ -1,3 +1,5 @@
+import asyncio
+
 import openai
 
 from ifixai.providers.base import (
@@ -12,11 +14,48 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_MODEL = "gpt-4o"
 
+ClientCacheKey = tuple[str | None, str | None, float, int]
+
 
 class OpenAIProvider(ChatProvider):
 
     def __init__(self) -> None:
-        pass
+        self._clients: dict[ClientCacheKey, openai.AsyncOpenAI] = {}
+        self._client_lock = asyncio.Lock()
+
+    async def get_client(self, config: ProviderConfig) -> openai.AsyncOpenAI:
+        """Return a long-lived AsyncOpenAI client keyed on connection params.
+
+        Caching one client per (endpoint, api_key, timeout, max_retries)
+        keeps the underlying httpx connection pool warm across hundreds of
+        LLM calls per run instead of re-handshaking TLS for every request.
+        """
+        key: ClientCacheKey = (
+            config.endpoint,
+            config.api_key,
+            float(config.timeout),
+            config.max_retries,
+        )
+        cached = self._clients.get(key)
+        if cached is not None:
+            return cached
+        async with self._client_lock:
+            cached = self._clients.get(key)
+            if cached is not None:
+                return cached
+            client = openai.AsyncOpenAI(
+                api_key=config.api_key,
+                base_url=config.endpoint,
+                timeout=float(config.timeout),
+                max_retries=config.max_retries,
+            )
+            self._clients[key] = client
+            return client
+
+    async def aclose(self) -> None:
+        for client in self._clients.values():
+            await client.close()
+        self._clients.clear()
 
     async def send_message(
         self,
@@ -28,69 +67,64 @@ class OpenAIProvider(ChatProvider):
 
         endpoint = config.endpoint or "https://api.openai.com/v1"
 
-        async with openai.AsyncOpenAI(
-            api_key=config.api_key,
-            base_url=config.endpoint,
-            timeout=float(config.timeout),
-            max_retries=config.max_retries,
-        ) as client:
-            try:
-                response = await client.chat.completions.create(
-                    model=model,
-                    messages=formatted_messages,  # type: ignore[arg-type]
-                )
+        client = await self.get_client(config)
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=formatted_messages,  # type: ignore[arg-type]
+            )
 
-                choices = response.choices
-                if not choices:
-                    raise ProviderResponseError(
-                        provider="openai",
-                        endpoint=endpoint,
-                        details=f"No choices in response (id={response.id})",
-                    )
-                choice = choices[0]
-                finish_reason = choice.finish_reason or "unknown"
-                if choice.message is None:
-                    raise ProviderResponseError(
-                        provider="openai",
-                        endpoint=endpoint,
-                        details=f"Missing message in choice (finish_reason={finish_reason})",
-                    )
-                content = choice.message.content
-                if not content:
-                    raise ProviderResponseError(
-                        provider="openai",
-                        endpoint=endpoint,
-                        details=f"Empty content in response (finish_reason={finish_reason})",
-                    )
-                return content
-
-            except openai.AuthenticationError as exc:
-                raise ProviderAuthError(
-                    provider="openai",
-                    endpoint=endpoint,
-                    details=str(exc),
-                ) from exc
-            except openai.RateLimitError as exc:
-                raise ProviderRateLimitError(
-                    provider="openai",
-                    endpoint=endpoint,
-                    details=str(exc),
-                ) from exc
-            except openai.APIConnectionError as exc:
-                raise ProviderConnectionError(
-                    provider="openai",
-                    endpoint=endpoint,
-                    details=str(exc),
-                ) from exc
-            except openai.APITimeoutError as exc:
-                raise ProviderTimeoutError(
-                    provider="openai",
-                    endpoint=endpoint,
-                    details=str(exc),
-                ) from exc
-            except openai.APIError as exc:
+            choices = response.choices
+            if not choices:
                 raise ProviderResponseError(
                     provider="openai",
                     endpoint=endpoint,
-                    details=str(exc),
-                ) from exc
+                    details=f"No choices in response (id={response.id})",
+                )
+            choice = choices[0]
+            finish_reason = choice.finish_reason or "unknown"
+            if choice.message is None:
+                raise ProviderResponseError(
+                    provider="openai",
+                    endpoint=endpoint,
+                    details=f"Missing message in choice (finish_reason={finish_reason})",
+                )
+            content = choice.message.content
+            if not content:
+                raise ProviderResponseError(
+                    provider="openai",
+                    endpoint=endpoint,
+                    details=f"Empty content in response (finish_reason={finish_reason})",
+                )
+            return content
+
+        except openai.AuthenticationError as exc:
+            raise ProviderAuthError(
+                provider="openai",
+                endpoint=endpoint,
+                details=str(exc),
+            ) from exc
+        except openai.RateLimitError as exc:
+            raise ProviderRateLimitError(
+                provider="openai",
+                endpoint=endpoint,
+                details=str(exc),
+            ) from exc
+        except openai.APIConnectionError as exc:
+            raise ProviderConnectionError(
+                provider="openai",
+                endpoint=endpoint,
+                details=str(exc),
+            ) from exc
+        except openai.APITimeoutError as exc:
+            raise ProviderTimeoutError(
+                provider="openai",
+                endpoint=endpoint,
+                details=str(exc),
+            ) from exc
+        except openai.APIError as exc:
+            raise ProviderResponseError(
+                provider="openai",
+                endpoint=endpoint,
+                details=str(exc),
+            ) from exc

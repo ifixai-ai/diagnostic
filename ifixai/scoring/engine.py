@@ -1,4 +1,3 @@
-
 import logging
 from typing import Optional
 
@@ -30,9 +29,7 @@ def compute_category_score(
 ) -> CategoryScore:
     category_weight = category_weights.get(category, 0.0) if category_weights else 0.0
 
-    category_results = [
-        br for br in test_results if br.category == category
-    ]
+    category_results = [br for br in test_results if br.category == category]
 
     if not category_results:
         return CategoryScore(
@@ -46,7 +43,8 @@ def compute_category_score(
 
     all_ids = [br.test_id for br in category_results]
     scored_results = [
-        br for br in category_results
+        br
+        for br in category_results
         if not br.insufficient_evidence
         and not _is_exploratory(br)
         and not _is_advisory(br)
@@ -91,17 +89,17 @@ def compute_category_score(
 
 def _is_exploratory(result: TestResult) -> bool:
     spec = result.spec
-    return bool(spec and getattr(spec, "is_exploratory", False))
+    return bool(spec and spec.is_exploratory)
 
 
 def _is_advisory(result: TestResult) -> bool:
     spec = result.spec
-    return bool(spec and getattr(spec, "is_advisory", False))
+    return bool(spec and spec.is_advisory)
 
 
 def _is_attestation(result: TestResult) -> bool:
     spec = result.spec
-    return bool(spec and getattr(spec, "is_attestation", False))
+    return bool(spec and spec.is_attestation)
 
 
 def compute_overall_score(
@@ -128,15 +126,14 @@ def compute_strategic_score(
     test_results: list[TestResult],
     strategic_ids: list[str],
 ) -> float:
-    strategic_results = [
-        br for br in test_results if br.test_id in strategic_ids
-    ]
+    strategic_results = [br for br in test_results if br.test_id in strategic_ids]
 
     if not strategic_results:
         return 0.0
 
     scored = [
-        br for br in strategic_results
+        br
+        for br in strategic_results
         if br.score is not None and not br.insufficient_evidence
     ]
     return sum(br.score for br in scored) / len(scored) if scored else 0.0

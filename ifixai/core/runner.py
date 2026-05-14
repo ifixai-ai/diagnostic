@@ -1,12 +1,13 @@
-
-
 import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from ifixai.core.concurrency import ConcurrencyGovernor
-from ifixai.evaluation.analytic_judge import AnalyticRubricJudge, EnsembleAnalyticRubricJudge
+from ifixai.evaluation.analytic_judge import (
+    AnalyticRubricJudge,
+    EnsembleAnalyticRubricJudge,
+)
 from ifixai.evaluation.pipeline import EvaluationPipeline
 from ifixai.providers.base import ChatProvider, detect_capabilities
 from ifixai.reporting.gap_analysis import identify_gaps
@@ -50,12 +51,12 @@ from ifixai.core.types import (
     TestRunResult,
 )
 
-
 ProgressCallback = Callable[[str, int, int, "TestResult"], None]
 
 
 class SelfJudgeNotAllowedError(Exception):
     pass
+
 
 SPECIFICATION_VERSION = "3.0"
 
@@ -72,6 +73,23 @@ _EXPECTED_INSPECTION_ERRORS: tuple[type[BaseException], ...] = (
     NotImplementedError,
     RuntimeError,
 )
+
+
+async def _aclose_judge(
+    judge: "JudgeEvaluator | EnsembleJudgeEvaluator | None",
+) -> None:
+    """Best-effort teardown for the judge's underlying HTTP/SDK pool.
+
+    Swallows close-time errors so a teardown failure cannot mask the
+    original exception that the inspection pipeline is propagating.
+    """
+    if judge is None:
+        return
+    try:
+        await judge.aclose()
+    except Exception:
+        _logger.exception("Judge teardown failed during aclose")
+
 
 async def run_all(
     provider: ChatProvider,
@@ -93,33 +111,37 @@ async def run_all(
 
     pipeline = _build_pipeline(pipeline_config, judge)
 
-    test_results = await _execute_inspections(
-        inspections=INSPECTION_REGISTRY,
-        specs=ALL_SPECS,
-        provider=provider,
-        config=config,
-        fixture=fixture,
-        capabilities=capabilities,
-        progress_callback=progress_callback,
-        pipeline_config=pipeline_config,
-        pipeline=pipeline,
-        governor=governor,
-    )
+    try:
+        test_results = await _execute_inspections(
+            inspections=INSPECTION_REGISTRY,
+            specs=ALL_SPECS,
+            provider=provider,
+            config=config,
+            fixture=fixture,
+            capabilities=capabilities,
+            progress_callback=progress_callback,
+            pipeline_config=pipeline_config,
+            pipeline=pipeline,
+            governor=governor,
+        )
 
-    result = _build_result(
-        test_results=test_results,
-        system_name=system_name or config.provider,
-        system_version=system_version,
-        fixture_name=fixture.metadata.name,
-        provider_name=config.provider,
-        run_mode="full",
-        judge_stats=judge.get_stats() if judge else None,
-        provider_capabilities=capabilities,
-        warnings=scorecard_warnings(judge_config, config.provider),
-        sut_temperature=config.temperature,
-        sut_seed=config.seed,
-    )
-    return result
+        result = _build_result(
+            test_results=test_results,
+            system_name=system_name or config.provider,
+            system_version=system_version,
+            fixture_name=fixture.metadata.name,
+            provider_name=config.provider,
+            run_mode="full",
+            judge_stats=judge.get_stats() if judge else None,
+            provider_capabilities=capabilities,
+            warnings=scorecard_warnings(judge_config, config.provider),
+            sut_temperature=config.temperature,
+            sut_seed=config.seed,
+        )
+        return result
+    finally:
+        await _aclose_judge(judge)
+
 
 async def run_strategic(
     provider: ChatProvider,
@@ -142,39 +164,42 @@ async def run_strategic(
     pipeline = _build_pipeline(pipeline_config, judge)
 
     strategic_inspections = {
-        bid: inspection for bid, inspection in INSPECTION_REGISTRY.items()
+        bid: inspection
+        for bid, inspection in INSPECTION_REGISTRY.items()
         if bid in STRATEGIC_TEST_IDS
     }
-    strategic_specs = [
-        s for s in ALL_SPECS if s.test_id in STRATEGIC_TEST_IDS
-    ]
+    strategic_specs = [s for s in ALL_SPECS if s.test_id in STRATEGIC_TEST_IDS]
 
-    test_results = await _execute_inspections(
-        inspections=strategic_inspections,
-        specs=strategic_specs,
-        provider=provider,
-        config=config,
-        fixture=fixture,
-        capabilities=capabilities,
-        progress_callback=progress_callback,
-        pipeline_config=pipeline_config,
-        pipeline=pipeline,
-        governor=governor,
-    )
+    try:
+        test_results = await _execute_inspections(
+            inspections=strategic_inspections,
+            specs=strategic_specs,
+            provider=provider,
+            config=config,
+            fixture=fixture,
+            capabilities=capabilities,
+            progress_callback=progress_callback,
+            pipeline_config=pipeline_config,
+            pipeline=pipeline,
+            governor=governor,
+        )
 
-    result = _build_result(
-        test_results=test_results,
-        system_name=system_name or config.provider,
-        system_version=system_version,
-        fixture_name=fixture.metadata.name,
-        provider_name=config.provider,
-        run_mode="strategic",
-        provider_capabilities=capabilities,
-        warnings=scorecard_warnings(judge_config, config.provider),
-        sut_temperature=config.temperature,
-        sut_seed=config.seed,
-    )
-    return result
+        result = _build_result(
+            test_results=test_results,
+            system_name=system_name or config.provider,
+            system_version=system_version,
+            fixture_name=fixture.metadata.name,
+            provider_name=config.provider,
+            run_mode="strategic",
+            provider_capabilities=capabilities,
+            warnings=scorecard_warnings(judge_config, config.provider),
+            sut_temperature=config.temperature,
+            sut_seed=config.seed,
+        )
+        return result
+    finally:
+        await _aclose_judge(judge)
+
 
 async def run_single(
     test_id: str,
@@ -200,11 +225,18 @@ async def run_single(
             f"Unknown test: {test_id}. "
             f"Available: {sorted(INSPECTION_REGISTRY.keys())}"
         )
-    return await inspection.execute(
-        provider, config, fixture, capabilities,
-        pipeline_config=pipeline_config,
-        pipeline=pipeline,
-    )
+    try:
+        return await inspection.execute(
+            provider,
+            config,
+            fixture,
+            capabilities,
+            pipeline_config=pipeline_config,
+            pipeline=pipeline,
+        )
+    finally:
+        await _aclose_judge(judge)
+
 
 async def _execute_inspections(
     inspections: dict[str, object],
@@ -220,13 +252,29 @@ async def _execute_inspections(
 ) -> list[TestResult]:
     if governor is None or governor.is_sequential:
         return await _run_sequential(
-            inspections, specs, provider, config, fixture, capabilities,
-            progress_callback, pipeline_config, pipeline,
+            inspections,
+            specs,
+            provider,
+            config,
+            fixture,
+            capabilities,
+            progress_callback,
+            pipeline_config,
+            pipeline,
         )
     return await _run_parallel(
-        inspections, specs, provider, config, fixture, capabilities,
-        progress_callback, pipeline_config, pipeline, governor,
+        inspections,
+        specs,
+        provider,
+        config,
+        fixture,
+        capabilities,
+        progress_callback,
+        pipeline_config,
+        pipeline,
+        governor,
     )
+
 
 async def _run_sequential(
     inspections: dict[str, object],
@@ -248,7 +296,9 @@ async def _run_sequential(
         try:
             result = await inspection.execute(provider, config, fixture, capabilities, pipeline_config=pipeline_config, pipeline=pipeline)  # type: ignore[union-attr]
         except _EXPECTED_INSPECTION_ERRORS as exc:
-            _logger.exception("Inspection %s failed during sequential execution", test_id)
+            _logger.exception(
+                "Inspection %s failed during sequential execution", test_id
+            )
             result = TestResult(
                 test_id=test_id,
                 name=spec.name if spec else test_id,
@@ -269,6 +319,7 @@ async def _run_sequential(
 
     return results
 
+
 async def _execute_single_inspection(
     test_id: str,
     inspection: object,
@@ -284,8 +335,12 @@ async def _execute_single_inspection(
     async with governor.acquire():
         try:
             return await inspection.execute(  # type: ignore[union-attr]
-                provider, config, fixture, capabilities,
-                pipeline_config=pipeline_config, pipeline=pipeline,
+                provider,
+                config,
+                fixture,
+                capabilities,
+                pipeline_config=pipeline_config,
+                pipeline=pipeline,
             )
         except _EXPECTED_INSPECTION_ERRORS as exc:
             _logger.exception("Inspection %s failed during parallel execution", test_id)
@@ -301,6 +356,7 @@ async def _execute_single_inspection(
                 error=f"Runner-level error: {exc}",
                 error_message=str(exc),
             )
+
 
 async def _run_parallel(
     inspections: dict[str, object],
@@ -319,9 +375,16 @@ async def _run_parallel(
     spec_map = {s.test_id: s for s in specs}
     tasks = [
         _execute_single_inspection(
-            test_id, inspection, spec_map.get(test_id),
-            provider, config, fixture, capabilities,
-            pipeline_config, pipeline, governor,
+            test_id,
+            inspection,
+            spec_map.get(test_id),
+            provider,
+            config,
+            fixture,
+            capabilities,
+            pipeline_config,
+            pipeline,
+            governor,
         )
         for test_id, inspection in items
     ]
@@ -334,6 +397,7 @@ async def _run_parallel(
     results.sort(key=lambda r: r.test_id)
     return results
 
+
 def _build_judge_evaluator(
     judge_config: JudgeConfig | None,
 ) -> JudgeEvaluator | EnsembleJudgeEvaluator | None:
@@ -342,6 +406,7 @@ def _build_judge_evaluator(
     if judge_config.providers is not None:
         return EnsembleJudgeEvaluator(judge_config)
     return JudgeEvaluator(judge_config)
+
 
 def _build_pipeline(
     pipeline_config: EvaluationPipelineConfig | None,
@@ -361,6 +426,7 @@ def _build_pipeline(
         judge=analytic_judge,
     )
 
+
 def _build_result(
     test_results: list[TestResult],
     system_name: str,
@@ -375,12 +441,12 @@ def _build_result(
     sut_seed: int | None = None,
 ) -> TestRunResult:
 
-    test_weights = {
-        spec.test_id: spec.weight for spec in ALL_SPECS
-    }
+    test_weights = {spec.test_id: spec.weight for spec in ALL_SPECS}
 
     category_scores = [
-        compute_category_score(test_results, category, test_weights, DEFAULT_CATEGORY_WEIGHTS)
+        compute_category_score(
+            test_results, category, test_weights, DEFAULT_CATEGORY_WEIGHTS
+        )
         for category in InspectionCategory
     ]
 
@@ -390,7 +456,9 @@ def _build_result(
     minimums_passed = minimums_result["minimums_passed"]
     minimum_status = minimums_result["minimum_status"]
     overall_score = cap_score_if_minimums_failed(raw_overall, minimums_passed)
-    overall_score_before_cap = raw_overall if (not minimums_passed and raw_overall is not None) else None
+    overall_score_before_cap = (
+        raw_overall if (not minimums_passed and raw_overall is not None) else None
+    )
     cap_bound = (
         raw_overall is not None
         and not minimums_passed
@@ -398,17 +466,15 @@ def _build_result(
     )
 
     grade = score_to_grade(overall_score if overall_score is not None else 0.0)
-    strategic_score = compute_strategic_score(
-        test_results, STRATEGIC_TEST_IDS
-    )
+    strategic_score = compute_strategic_score(test_results, STRATEGIC_TEST_IDS)
     gaps = identify_gaps(test_results)
 
     violations = [
-        bid for bid, status in minimum_status.items()
-        if status == TestStatus.FAIL
+        bid for bid, status in minimum_status.items() if status == TestStatus.FAIL
     ]
     inconclusive_minimums = [
-        bid for bid, status in minimum_status.items()
+        bid
+        for bid, status in minimum_status.items()
         if status == TestStatus.INCONCLUSIVE
     ]
 
@@ -466,6 +532,7 @@ def _build_result(
         judge_stats=judge_stats,
         warnings=combined_warnings,
     )
+
 
 def _find_spec(test_id: str, specs: list[InspectionSpec]) -> InspectionSpec | None:
     for spec in specs:

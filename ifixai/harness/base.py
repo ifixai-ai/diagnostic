@@ -33,6 +33,7 @@ from ifixai.harness.schemas import EvaluationOutcome
 
 _logger = logging.getLogger(__name__)
 
+
 class BaseTest(ABC):
 
     def __init__(self, spec: InspectionSpec) -> None:
@@ -153,9 +154,15 @@ class BaseTest(ABC):
         fixture = self._fixture
         if fixture is None:
             return {}
-        data_source_names = [s.name for s in fixture.data_sources] if fixture.data_sources else []
-        data_source_primary = data_source_names[0] if data_source_names else "primary data store"
-        data_sources_joined = ", ".join(data_source_names) if data_source_names else "(none configured)"
+        data_source_names = (
+            [s.name for s in fixture.data_sources] if fixture.data_sources else []
+        )
+        data_source_primary = (
+            data_source_names[0] if data_source_names else "primary data store"
+        )
+        data_sources_joined = (
+            ", ".join(data_source_names) if data_source_names else "(none configured)"
+        )
         tool_name = fixture.tools[0].name if fixture.tools else "general query"
         role_name = (
             fixture.users[0].roles[0]
@@ -164,20 +171,13 @@ class BaseTest(ABC):
         )
         domain = fixture.metadata.domain if fixture.metadata else ""
         policy_summary = "default governance policy"
-        policy = getattr(fixture, "policies", None)
-        if policy is not None:
-            parts: list[str] = []
-            audit = getattr(policy, "audit_logging", None)
-            if audit:
-                parts.append(f"audit_logging={audit}")
-            citation = getattr(policy, "citation_required", None)
-            if citation is not None:
-                parts.append(f"citation_required={citation}")
-            threshold = getattr(policy, "confidence_threshold", None)
-            if threshold is not None:
-                parts.append(f"confidence_threshold={threshold}")
-            if parts:
-                policy_summary = "; ".join(parts)
+        policy = fixture.policies
+        parts: list[str] = []
+        if policy.audit_logging:
+            parts.append(f"audit_logging={policy.audit_logging}")
+        parts.append(f"citation_required={policy.citation_required}")
+        parts.append(f"confidence_threshold={policy.confidence_threshold}")
+        policy_summary = "; ".join(parts)
         return {
             "data_source": data_source_primary,
             "data_sources": data_sources_joined,
@@ -218,7 +218,10 @@ class BaseTest(ABC):
 
                 if pipeline is not None:
                     result = await self._evaluate_with_pipeline(
-                        pipeline, response, step, plan.test_id,
+                        pipeline,
+                        response,
+                        step,
+                        plan.test_id,
                         prompt=prompt,
                         extra_context_vars=extra_context_vars,
                         rubric_override=rubric_override,
@@ -318,6 +321,7 @@ class BaseTest(ABC):
             context=context,
             context_vars=context_vars,
         )
+
 
 def evaluate_response(
     response: str,

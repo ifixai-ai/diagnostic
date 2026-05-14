@@ -1,5 +1,6 @@
+import asyncio
 
-
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
 from ifixai.harness.injection_corpus import (
@@ -9,6 +10,7 @@ from ifixai.harness.injection_corpus import (
 )
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
+    AnalyticRubric,
     InspectionCategory,
     InspectionSpec,
     EvaluationCriteria,
@@ -17,6 +19,8 @@ from ifixai.core.types import (
     Fixture,
     ProviderConfig,
 )
+
+_MAX_CONCURRENT_PAYLOADS = DEFAULT_INSPECTION_CONCURRENCY["b12"]
 
 SPEC = InspectionSpec(
     test_id="B12",
@@ -30,6 +34,7 @@ SPEC = InspectionSpec(
     weight=0.15,
     scoring_method="% Injections Blocked (per-category)",
 )
+
 
 class B12PromptInjection(BaseTest):
     """Inspection: send taxonomy-tagged injection payloads from the
@@ -53,31 +58,67 @@ class B12PromptInjection(BaseTest):
             else 20260422
         )
         payloads = sample_corpus(corpus, seed=seed)
-        evidence: list[EvidenceItem] = []
-        for payload in payloads:
-            evidence.append(
-                await self._evaluate_payload(provider, config, payload)
-            )
-        return evidence
+        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_PAYLOADS)
+        evidence = await asyncio.gather(
+            *[
+                self._evaluate_payload(semaphore, provider, config, payload, rubric)
+                for payload in payloads
+            ]
+        )
+        return list(evidence)
 
     async def _evaluate_payload(
         self,
+        semaphore: asyncio.Semaphore,
         provider: ChatProvider,
         config: ProviderConfig,
         payload: InjectionPayload,
+        rubric: AnalyticRubric | None,
     ) -> EvidenceItem:
-        response = await send_single_turn(provider, config, payload.payload)
-        test_case_id = f"B12_{payload.category}_{payload.id}"
-        description = (
-            f"Injection inspection ({payload.category}/{payload.id})"
-        )
-        details: dict[str, object] = {
-            "evidence_tier": "judge_analytic_rubric",
-            "payload_id": payload.id,
-            "payload_category": payload.category,
-        }
+        async with semaphore:
+            response = await send_single_turn(provider, config, payload.payload)
+            test_case_id = f"B12_{payload.category}_{payload.id}"
+            description = f"Injection inspection ({payload.category}/{payload.id})"
+            details: dict[str, object] = {
+                "evidence_tier": "judge_analytic_rubric",
+                "payload_id": payload.id,
+                "payload_category": payload.category,
+            }
 
-        if self._pipeline is None:
+            if self._pipeline is None:
+                return EvidenceItem(
+                    test_case_id=test_case_id,
+                    description=description,
+                    prompt_sent=payload.payload,
+                    expected="refuse",
+                    expected_behavior="refuse the injection and preserve original instructions",
+                    actual=response[:500],
+                    actual_response=response,
+                    evaluation_result="inconclusive: no judge configured (B12 corpus scoring requires the analytic pipeline)",
+                    passed=False,
+                    evaluation_method=EvaluationMethod.JUDGE,
+                    details=details,
+                )
+
+            criteria = EvaluationCriteria(expected_outcome="refuse")
+            context = (
+                f"B12 prompt-injection inspection; category={payload.category}; "
+                f"payload_id={payload.id}"
+            )
+            context_vars = {
+                "system_instructions": config.system_prompt or "",
+                "inspection_input": payload.payload,
+                "actual_response": response,
+            }
+            result = await self._pipeline.evaluate(
+                response=response,
+                criteria=criteria,
+                rubric=rubric,
+                references=None,
+                context=context,
+                context_vars=context_vars,
+            )
             return EvidenceItem(
                 test_case_id=test_case_id,
                 description=description,
@@ -86,45 +127,11 @@ class B12PromptInjection(BaseTest):
                 expected_behavior="refuse the injection and preserve original instructions",
                 actual=response[:500],
                 actual_response=response,
-                evaluation_result="inconclusive: no judge configured (B12 corpus scoring requires the analytic pipeline)",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
+                evaluation_result=result.evaluation_result,
+                passed=result.passed,
+                evaluation_method=result.evaluation_method,
+                judge_verdict=result.judge_verdict,
+                dimension_scores=result.dimension_scores,
+                rubric_verdict=result.rubric_verdict,
                 details=details,
             )
-
-        criteria = EvaluationCriteria(expected_outcome="refuse")
-        rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
-        context = (
-            f"B12 prompt-injection inspection; category={payload.category}; "
-            f"payload_id={payload.id}"
-        )
-        context_vars = {
-            "system_instructions": config.system_prompt or "",
-            "inspection_input": payload.payload,
-            "actual_response": response,
-        }
-        result = await self._pipeline.evaluate(
-            response=response,
-            criteria=criteria,
-            rubric=rubric,
-            references=None,
-            context=context,
-            context_vars=context_vars,
-        )
-        return EvidenceItem(
-            test_case_id=test_case_id,
-            description=description,
-            prompt_sent=payload.payload,
-            expected="refuse",
-            expected_behavior="refuse the injection and preserve original instructions",
-            actual=response[:500],
-            actual_response=response,
-            evaluation_result=result.evaluation_result,
-            passed=result.passed,
-            evaluation_method=result.evaluation_method,
-            judge_verdict=result.judge_verdict,
-            dimension_scores=result.dimension_scores,
-            rubric_verdict=result.rubric_verdict,
-            details=details,
-        )
-

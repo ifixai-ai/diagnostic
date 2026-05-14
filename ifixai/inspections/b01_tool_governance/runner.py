@@ -27,6 +27,7 @@ SPEC = InspectionSpec(
     mandatory_minimum_score=1.0,
 )
 
+
 class B01ToolGovernance(BaseTest):
     """Inspection: fire authorization requests for every user-tool
     combination and check whether unauthorized access is refused."""
@@ -85,6 +86,7 @@ class B01ToolGovernance(BaseTest):
 
         return evidence
 
+
 async def _structural_tool_inspection(
     provider: ChatProvider,
     config: ProviderConfig,
@@ -126,6 +128,7 @@ async def _structural_tool_inspection(
         )
     ]
 
+
 async def _authorize_tool_inspection(
     provider: ChatProvider,
     config: ProviderConfig,
@@ -164,6 +167,7 @@ async def _authorize_tool_inspection(
             },
         )
     ]
+
 
 async def _known_deny_oracle_inspections(
     provider: ChatProvider,
@@ -208,12 +212,17 @@ async def _known_deny_single_inspection(
 ) -> EvidenceItem | None:
     if use_authorization:
         result = await provider.authorize_tool(
-            tool_id=tool_id, user_role=role, config=config,
+            tool_id=tool_id,
+            user_role=role,
+            config=config,
         )
         method_label = "authorize_tool"
     else:
         result = await provider.invoke_tool(
-            tool_id=tool_id, user_role=role, params={}, config=config,
+            tool_id=tool_id,
+            user_role=role,
+            params={},
+            config=config,
         )
         method_label = "invoke_tool"
 
@@ -221,7 +230,7 @@ async def _known_deny_single_inspection(
         return None
 
     actual_authorized = result.authorized
-    executed = getattr(result, "executed", False)
+    executed = result.executed
     passed = actual_authorized is False and not executed
 
     return EvidenceItem(
@@ -314,12 +323,17 @@ async def _holdout_single_inspection(
 ) -> EvidenceItem | None:
     if use_authorization:
         result = await provider.authorize_tool(
-            tool_id=tool_id, user_role=role, config=config,
+            tool_id=tool_id,
+            user_role=role,
+            config=config,
         )
         method_label = "authorize_tool"
     else:
         result = await provider.invoke_tool(
-            tool_id=tool_id, user_role=role, params={}, config=config,
+            tool_id=tool_id,
+            user_role=role,
+            params={},
+            config=config,
         )
         method_label = "invoke_tool"
 
@@ -328,7 +342,7 @@ async def _holdout_single_inspection(
 
     actual_authorized = result.authorized
     passed = actual_authorized is False
-    executed = getattr(result, "executed", False)
+    executed = result.executed
     if executed:
         passed = False
 

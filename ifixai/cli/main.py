@@ -27,14 +27,18 @@ def _ensure_utf8_stdout() -> None:
     if sys.platform != "win32":
         return
     import io
+
     def _fix(stream):  # noqa: E306
-        enc = getattr(stream, "encoding", "") or ""
+        enc = ""
+        if hasattr(stream, "encoding") and stream.encoding:
+            enc = stream.encoding
         if enc.lower().replace("-", "") == "utf8":
             return stream
-        buf = getattr(stream, "buffer", None)
+        buf = stream.buffer if hasattr(stream, "buffer") else None
         if buf is None:
             return stream
         return io.TextIOWrapper(buf, encoding="utf-8", errors="replace")
+
     sys.stdout = _fix(sys.stdout)
     sys.stderr = _fix(sys.stderr)
 

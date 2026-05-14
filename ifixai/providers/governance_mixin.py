@@ -8,6 +8,7 @@ The mixin is test-aware: callers pass `test_id` via `config.model_extra`,
 which lets the pipeline wire per-test overrides without changing every
 structural-method signature.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +36,7 @@ def _test_id(config: ProviderConfig) -> Optional[str]:
 
     Providers used outside the pipeline get the base policies block.
     """
-    extra = getattr(config, "model_extra", None) or {}
+    extra: dict[str, Any] = config.model_extra or {}
     bid = extra.get("test_id")
     return bid if isinstance(bid, str) else None
 
@@ -53,15 +54,14 @@ class GovernanceMixin(ChatProvider):
     """
 
     _governance: Optional[GovernanceFixture]
+    _audit_seed_applied: bool = False
 
     def _policies(self, config: ProviderConfig) -> Optional[PoliciesBlock]:
         if self._governance is None:
             return None
         return self._governance.policies_for(_test_id(config))
 
-    async def list_tools(
-        self, config: ProviderConfig
-    ) -> list[ToolInfo] | None:
+    async def list_tools(self, config: ProviderConfig) -> list[ToolInfo] | None:
         if self._governance is None:
             return None
         return [
@@ -154,7 +154,7 @@ class GovernanceMixin(ChatProvider):
         """
         if self._governance is None:
             return
-        if getattr(self, "_audit_seed_applied", False):
+        if self._audit_seed_applied:
             return
         seeds = self._governance.seed_audit_records
         if seeds:
@@ -289,10 +289,7 @@ class GovernanceMixin(ChatProvider):
         policies = self._policies(config)
         if policies is None:
             return None
-        return {
-            role: rule.model_dump()
-            for role, rule in policies.rate_limits.items()
-        }
+        return {role: rule.model_dump() for role, rule in policies.rate_limits.items()}
 
     async def get_session_state(
         self,

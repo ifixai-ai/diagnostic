@@ -1,4 +1,3 @@
-
 import json
 from typing import Final
 
@@ -18,7 +17,9 @@ SELF_JUDGE_BIAS_ADVISORY: Final[str] = (
 
 INSUFFICIENT_EVIDENCE_PREFIX: Final[str] = "insufficient evidence: "
 EXTRACTION_ERROR_PREFIX: Final[str] = "judge extraction failure: "
-EXPLORATORY_INSPECTION_PREFIX: Final[str] = "exploratory inspection (excluded from aggregation): "
+EXPLORATORY_INSPECTION_PREFIX: Final[str] = (
+    "exploratory inspection (excluded from aggregation): "
+)
 ADVISORY_INSPECTION_PREFIX: Final[str] = (
     "advisory inspection (self-report, excluded from aggregation): "
 )
@@ -28,9 +29,7 @@ ATTESTATION_INSPECTION_PREFIX: Final[str] = (
 B22_SKIPPED_MESSAGE: Final[str] = (
     "b22 skipped: SUT non-deterministic (pass --sut-temperature 0 or --sut-seed)"
 )
-SEED_UNSUPPORTED_PREFIX: Final[str] = (
-    "b12 seed accepted but provider cannot honour: "
-)
+SEED_UNSUPPORTED_PREFIX: Final[str] = "b12 seed accepted but provider cannot honour: "
 
 
 def insufficient_evidence_warnings(
@@ -53,7 +52,7 @@ def exploratory_inspection_warnings(
 ) -> list[str]:
     messages: list[str] = []
     for br in test_results:
-        if not br.spec or not getattr(br.spec, "is_exploratory", False):
+        if not br.spec or not br.spec.is_exploratory:
             continue
         messages.append(EXPLORATORY_INSPECTION_PREFIX + br.test_id)
     return messages
@@ -64,7 +63,7 @@ def advisory_inspection_warnings(
 ) -> list[str]:
     messages: list[str] = []
     for br in test_results:
-        if not br.spec or not getattr(br.spec, "is_advisory", False):
+        if not br.spec or not br.spec.is_advisory:
             continue
         if not br.evidence:
             continue
@@ -77,7 +76,7 @@ def attestation_inspection_warnings(
 ) -> list[str]:
     messages: list[str] = []
     for br in test_results:
-        if not br.spec or not getattr(br.spec, "is_attestation", False):
+        if not br.spec or not br.spec.is_attestation:
             continue
         messages.append(ATTESTATION_INSPECTION_PREFIX + br.test_id)
     return messages
@@ -88,9 +87,7 @@ def extraction_error_warnings(
 ) -> list[str]:
     messages: list[str] = []
     for br in test_results:
-        affected = sum(
-            1 for ev in br.evidence if ev.extraction_error is not None
-        )
+        affected = sum(1 for ev in br.evidence if ev.extraction_error is not None)
         if affected == 0:
             continue
         messages.append(
@@ -160,6 +157,7 @@ def generate_json_report(result: TestRunResult) -> str:
 
     return json.dumps(report, indent=2, ensure_ascii=False)
 
+
 def generate_markdown_report(result: TestRunResult) -> str:
     frameworks = load_all_mappings()
 
@@ -179,6 +177,7 @@ def generate_markdown_report(result: TestRunResult) -> str:
 
     return "\n\n".join(s for s in sections if s) + "\n"
 
+
 def build_metadata_section(
     result: TestRunResult,
     frameworks: dict[str, RegulatoryFramework] | None = None,
@@ -196,10 +195,10 @@ def build_metadata_section(
         meta["judge_stats"] = result.judge_stats
     if frameworks:
         meta["regulatory_frameworks"] = [
-            {"name": fw.framework, "version": fw.version}
-            for fw in frameworks.values()
+            {"name": fw.framework, "version": fw.version} for fw in frameworks.values()
         ]
     return meta
+
 
 def build_overall_section(result: TestRunResult) -> dict[str, object]:
     overall = result.overall_score
@@ -212,9 +211,7 @@ def build_overall_section(result: TestRunResult) -> dict[str, object]:
         "passed": result.passed,
         "verdict": _format_run_verdict(result).lower(),
         "mandatory_minimums_passed": result.mandatory_minimums_passed,
-        "mandatory_minimums_inconclusive": list(
-            result.mandatory_minimums_inconclusive
-        ),
+        "mandatory_minimums_inconclusive": list(result.mandatory_minimums_inconclusive),
     }
     if result.overall_score_before_cap is not None:
         section["score_before_cap"] = round(result.overall_score_before_cap, 4)
@@ -224,6 +221,7 @@ def build_overall_section(result: TestRunResult) -> dict[str, object]:
         )
         section["cap_applied"] = cap_bound
     return section
+
 
 def build_category_scores_section(
     result: TestRunResult,
@@ -240,6 +238,7 @@ def build_category_scores_section(
         for cs in result.category_scores
     ]
 
+
 def build_mandatory_minimums_section(
     result: TestRunResult,
 ) -> dict[str, object]:
@@ -253,6 +252,7 @@ def build_mandatory_minimums_section(
         "violations": list(result.mandatory_minimum_violations),
         "inconclusive": list(result.mandatory_minimums_inconclusive),
     }
+
 
 def build_test_results_section(
     result: TestRunResult,
@@ -307,9 +307,7 @@ def build_test_results_section(
             "evidence": evidence_list,
             "duration_ms": round(br.duration_ms, 1),
             "error": br.error,
-            "regulatory_mappings": get_test_regulatory_mappings(
-                br.test_id, frameworks
-            ),
+            "regulatory_mappings": get_test_regulatory_mappings(br.test_id, frameworks),
         }
         br_dict["evaluation_path"] = _dominant_evaluation_path(br)
         if br.confidence_interval:
@@ -329,6 +327,7 @@ def build_test_results_section(
         items.append(br_dict)
     return items
 
+
 def render_header(result: TestRunResult) -> str:
     eval_mode = "deterministic"
     for br in result.test_results:
@@ -347,6 +346,7 @@ def render_header(result: TestRunResult) -> str:
     )
     return header
 
+
 def _format_run_minimums_status(result: TestRunResult) -> str:
     statuses = result.mandatory_minimum_status.values()
     if any(s == TestStatus.FAIL for s in statuses):
@@ -361,10 +361,7 @@ def _format_run_verdict(result: TestRunResult) -> str:
         return "PASS"
     if result.mandatory_minimum_violations:
         return "FAIL"
-    if (
-        result.overall_score is None
-        or result.mandatory_minimums_inconclusive
-    ):
+    if result.overall_score is None or result.mandatory_minimums_inconclusive:
         return "INCONCLUSIVE"
     return "FAIL"
 
@@ -373,7 +370,8 @@ def render_summary(result: TestRunResult) -> str:
     minimums_status = _format_run_minimums_status(result)
     verdict = _format_run_verdict(result)
     overall_display = (
-        "n/a (insufficient evidence)" if result.overall_score is None
+        "n/a (insufficient evidence)"
+        if result.overall_score is None
         else f"{result.overall_score:.1%}"
     )
 
@@ -388,6 +386,7 @@ def render_summary(result: TestRunResult) -> str:
         f"| **Mandatory Minimums** | {minimums_status} |"
     )
 
+
 def render_category_table(result: TestRunResult) -> str:
     lines = [
         "## Category Scores\n",
@@ -398,11 +397,10 @@ def render_category_table(result: TestRunResult) -> str:
     for cs in result.category_scores:
         test_count = len(cs.test_ids)
         score_display = "n/a" if cs.score is None else f"{cs.score:.1%}"
-        lines.append(
-            f"| {cs.category.value} | {score_display} | {test_count} |"
-        )
+        lines.append(f"| {cs.category.value} | {score_display} | {test_count} |")
 
     return "\n".join(lines)
+
 
 def render_mandatory_minimums(result: TestRunResult) -> str:
     if not result.mandatory_minimum_status:
@@ -420,16 +418,17 @@ def render_mandatory_minimums(result: TestRunResult) -> str:
 
     return "\n".join(lines)
 
+
 def _is_advisory_result(br: TestResult) -> bool:
-    return bool(br.spec and getattr(br.spec, "is_advisory", False))
+    return bool(br.spec and br.spec.is_advisory)
 
 
 def _is_exploratory_result(br: TestResult) -> bool:
-    return bool(br.spec and getattr(br.spec, "is_exploratory", False))
+    return bool(br.spec and br.spec.is_exploratory)
 
 
 def _is_attestation_result(br: TestResult) -> bool:
-    return bool(br.spec and getattr(br.spec, "is_attestation", False))
+    return bool(br.spec and br.spec.is_attestation)
 
 
 _STATUS_LABELS: Final[dict[TestStatus, str]] = {
@@ -469,7 +468,8 @@ def _dominant_evaluation_path(br: TestResult) -> str:
 
 def render_test_table(result: TestRunResult) -> str:
     scored = [
-        br for br in result.test_results
+        br
+        for br in result.test_results
         if not _is_advisory_result(br)
         and not _is_exploratory_result(br)
         and not _is_attestation_result(br)
@@ -484,8 +484,7 @@ def render_test_table(result: TestRunResult) -> str:
     for br in scored:
         status = _format_test_status(br)
         score_display = (
-            "n/a" if br.status == TestStatus.INCONCLUSIVE
-            else f"{br.score:.1%}"
+            "n/a" if br.status == TestStatus.INCONCLUSIVE else f"{br.score:.1%}"
         )
         if br.confidence_interval and br.status != TestStatus.INCONCLUSIVE:
             score_display += f" [{br.confidence_interval.lower:.2f}, {br.confidence_interval.upper:.2f}]"
@@ -545,8 +544,7 @@ def render_test_table(result: TestRunResult) -> str:
 
 def render_advisory_section(result: TestRunResult) -> str:
     advisory = [
-        br for br in result.test_results
-        if _is_advisory_result(br) and br.evidence
+        br for br in result.test_results if _is_advisory_result(br) and br.evidence
     ]
     if not advisory:
         return ""
@@ -574,8 +572,7 @@ def render_advisory_section(result: TestRunResult) -> str:
 
 def render_exploratory_section(result: TestRunResult) -> str:
     exploratory = [
-        br for br in result.test_results
-        if _is_exploratory_result(br) and br.evidence
+        br for br in result.test_results if _is_exploratory_result(br) and br.evidence
     ]
     if not exploratory:
         return ""
@@ -594,17 +591,13 @@ def render_exploratory_section(result: TestRunResult) -> str:
     ]
     for br in sorted(exploratory, key=lambda b: b.test_id):
         lines.append(
-            f"| {br.test_id} | {br.name} | {br.score:.1%} "
-            f"| {len(br.evidence)} |"
+            f"| {br.test_id} | {br.name} | {br.score:.1%} " f"| {len(br.evidence)} |"
         )
     return "\n".join(lines)
 
 
 def render_attestation_section(result: TestRunResult) -> str:
-    attestation = [
-        br for br in result.test_results
-        if _is_attestation_result(br)
-    ]
+    attestation = [br for br in result.test_results if _is_attestation_result(br)]
     if not attestation:
         return ""
 
@@ -626,9 +619,7 @@ def render_attestation_section(result: TestRunResult) -> str:
         if br.evidence:
             first = br.evidence[0]
             recorded = first.actual or "not attested"
-        lines.append(
-            f"| {br.test_id} | {br.name} | {recorded} |"
-        )
+        lines.append(f"| {br.test_id} | {br.name} | {recorded} |")
     return "\n".join(lines)
 
 
@@ -658,6 +649,7 @@ def render_regulatory_compliance(
 
     return "\n".join(lines)
 
+
 def render_evidence_appendix(result: TestRunResult) -> str:
     lines = ["## Evidence Appendix\n"]
     has_evidence = False
@@ -672,7 +664,11 @@ def render_evidence_appendix(result: TestRunResult) -> str:
         lines.append(f"### {br.test_id} — {br.name} ({status_label})\n")
 
         for ev in br.evidence:
-            prompt_display = ev.prompt_sent[:200] + "..." if len(ev.prompt_sent) > 200 else ev.prompt_sent
+            prompt_display = (
+                ev.prompt_sent[:200] + "..."
+                if len(ev.prompt_sent) > 200
+                else ev.prompt_sent
+            )
             actual_display = ev.actual_response or ev.actual
             if len(actual_display) > 200:
                 actual_display = actual_display[:200] + "..."
@@ -693,6 +689,7 @@ def render_evidence_appendix(result: TestRunResult) -> str:
         lines.append("No evidence items recorded.")
 
     return "\n".join(lines)
+
 
 _IME_FOOTER: Final[str] = """\
 ---

@@ -9,6 +9,7 @@ Usage:
     log = bind_run(run_id="abc123", test_id="B12")
     log.info("inspection_started", test_case_id="tc_001")
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,6 +27,16 @@ except ImportError:
 
 _configured = False
 
+_STD_LEVEL_BY_NAME: dict[str, int] = {
+    "CRITICAL": logging.CRITICAL,
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "WARN": logging.WARNING,
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "NOTSET": logging.NOTSET,
+}
+
 
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     """Configure root logging once per process.
@@ -38,7 +49,7 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
         return
     _configured = True
 
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    numeric_level = _STD_LEVEL_BY_NAME.get(level.upper(), logging.INFO)
     logging.basicConfig(
         level=numeric_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",

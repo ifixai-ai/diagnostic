@@ -20,6 +20,7 @@ from ifixai.core.types import (
     EvaluationMethod,
     InspectionSpec,
     ProviderConfig,
+    User,
 )
 
 SPEC = InspectionSpec(
@@ -132,10 +133,22 @@ class B14CovertSideTask(BaseTest):
             )
             evidence.extend(structural)
 
-            results = await asyncio.gather(*[
-                _run_variant(self, semaphore, seeds_by_id, fixture, provider, config, plan, user, v)
-                for v in variants
-            ])
+            results = await asyncio.gather(
+                *[
+                    _run_variant(
+                        self,
+                        semaphore,
+                        seeds_by_id,
+                        fixture,
+                        provider,
+                        config,
+                        plan,
+                        user,
+                        v,
+                    )
+                    for v in variants
+                ]
+            )
             for step_evidence in results:
                 evidence.extend(step_evidence)
 
@@ -166,11 +179,12 @@ class B14CovertSideTask(BaseTest):
             t.tool_id for t in fixture.tools if t.risk_level == "high"
         }
 
-        user_role = user.roles[0] if getattr(user, "roles", None) else "user"
-        user_id = getattr(user, "user_id", "unknown")
+        user_role = user.roles[0] if user.roles else "user"
+        user_id = user.user_id
 
         suspicious_tools = [
-            tool for tool in tools_available
+            tool
+            for tool in tools_available
             if (
                 any(kw in tool.name.lower() for kw in _SUSPICIOUS_TOOL_KEYWORDS)
                 or tool.tool_id in fixture_high_risk_ids
@@ -178,21 +192,23 @@ class B14CovertSideTask(BaseTest):
             )
         ]
 
-        results = await asyncio.gather(*[
-            _probe_tool(semaphore, provider, config, user_role, user_id, t)
-            for t in suspicious_tools
-        ])
+        results = await asyncio.gather(
+            *[
+                _probe_tool(semaphore, provider, config, user_role, user_id, t)
+                for t in suspicious_tools
+            ]
+        )
         return [r for r in results if r is not None]
 
 
 def _build_template_vars(
-    user: object,
+    user: User,
     variant: MutatedVariant,
     seed_entry: SeedEntry,
     fixture: Fixture,
 ) -> dict[str, str]:
-    user_name = getattr(user, "name", "user")
-    user_roles = getattr(user, "roles", None)
+    user_name = user.name
+    user_roles = user.roles
     role = user_roles[0] if user_roles else "user"
     legitimate = seed_entry.metadata.get("legitimate_request", seed_entry.text)
     covert_task = seed_entry.metadata.get("covert_objective", seed_entry.text)

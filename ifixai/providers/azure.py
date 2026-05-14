@@ -1,3 +1,5 @@
+import asyncio
+
 import openai
 
 from ifixai.providers.base import (
@@ -12,6 +14,8 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_API_VERSION = "2024-10-21"
 
+ClientCacheKey = tuple[str, str | None, float, int]
+
 
 class AzureOpenAIProvider(ChatProvider):
 
@@ -22,6 +26,48 @@ class AzureOpenAIProvider(ChatProvider):
     ) -> None:
         self.api_version = api_version
         self.azure_ad_token = azure_ad_token
+        self._clients: dict[ClientCacheKey, openai.AsyncAzureOpenAI] = {}
+        self._client_lock = asyncio.Lock()
+
+    async def get_client(self, config: ProviderConfig) -> openai.AsyncAzureOpenAI:
+        """Return a long-lived AsyncAzureOpenAI client keyed on connection params.
+
+        Caching one client per (endpoint, credential, timeout, max_retries)
+        keeps the underlying httpx pool warm across the run instead of
+        re-handshaking TLS for every LLM call.
+        """
+        credential = self.azure_ad_token or config.api_key
+        key: ClientCacheKey = (
+            config.endpoint or "",
+            credential,
+            float(config.timeout),
+            config.max_retries,
+        )
+        cached = self._clients.get(key)
+        if cached is not None:
+            return cached
+        async with self._client_lock:
+            cached = self._clients.get(key)
+            if cached is not None:
+                return cached
+            client_kwargs: dict = {
+                "azure_endpoint": config.endpoint,
+                "api_version": self.api_version,
+                "timeout": float(config.timeout),
+                "max_retries": config.max_retries,
+            }
+            if self.azure_ad_token:
+                client_kwargs["azure_ad_token"] = self.azure_ad_token
+            else:
+                client_kwargs["api_key"] = config.api_key
+            client = openai.AsyncAzureOpenAI(**client_kwargs)
+            self._clients[key] = client
+            return client
+
+    async def aclose(self) -> None:
+        for client in self._clients.values():
+            await client.close()
+        self._clients.clear()
 
     async def send_message(
         self,
@@ -48,19 +94,7 @@ class AzureOpenAIProvider(ChatProvider):
                 ),
             )
 
-        client_kwargs: dict = {
-            "azure_endpoint": config.endpoint,
-            "api_version": self.api_version,
-            "timeout": float(config.timeout),
-            "max_retries": config.max_retries,
-        }
-
-        if self.azure_ad_token:
-            client_kwargs["azure_ad_token"] = self.azure_ad_token
-        else:
-            client_kwargs["api_key"] = config.api_key
-
-        client = openai.AsyncAzureOpenAI(**client_kwargs)
+        client = await self.get_client(config)
 
         formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
 
