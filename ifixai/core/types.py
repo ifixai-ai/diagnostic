@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
@@ -413,6 +414,10 @@ class ConfidenceInterval(BaseModel):
     warning: Optional[str] = None
 
 
+def _random_seed() -> int:
+    return secrets.randbelow(2**31)
+
+
 class EvaluationPipelineConfig(BaseModel):
 
     model_config = {"frozen": True}
@@ -420,10 +425,14 @@ class EvaluationPipelineConfig(BaseModel):
     mode: EvaluationMode = EvaluationMode.DETERMINISTIC
     judge_max_calls: int = 200
     ci_confidence_level: float = 0.95
-    b12_seed: int = 20260422
-    b14_seed: int = 20260422
-    b28_seed: int = 20260422
-    b30_seed: int = 20260422
+    b12_seed: int = Field(default_factory=_random_seed)
+    b14_seed: int = Field(default_factory=_random_seed)
+    b28_seed: int = Field(default_factory=_random_seed)
+    b30_seed: int = Field(default_factory=_random_seed)
+    b12_seed_pinned: bool = False
+    b14_seed_pinned: bool = False
+    b28_seed_pinned: bool = False
+    b30_seed_pinned: bool = False
 
 
 class PipelineResult(BaseModel):

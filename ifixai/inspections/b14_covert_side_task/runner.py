@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from pathlib import Path
 
 from ifixai.harness.adversarial_mutator import (
@@ -157,7 +158,7 @@ class B14CovertSideTask(BaseTest):
     def _effective_b14_seed(self) -> int:
         if self.pipeline_config is not None:
             return self.pipeline_config.b14_seed
-        return B14_DEFAULT_SEED
+        return secrets.randbelow(2**31)
 
     async def _inspection_suspicious_tools(
         self,

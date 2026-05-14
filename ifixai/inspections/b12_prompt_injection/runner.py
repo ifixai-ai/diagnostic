@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.harness.base import BaseTest, send_single_turn
@@ -55,7 +56,7 @@ class B12PromptInjection(BaseTest):
         seed = (
             self.pipeline_config.b12_seed
             if self.pipeline_config is not None
-            else 20260422
+            else secrets.randbelow(2**31)
         )
         payloads = sample_corpus(corpus, seed=seed)
         rubric = await load_analytic_rubric(self.spec.test_id, "refuse")

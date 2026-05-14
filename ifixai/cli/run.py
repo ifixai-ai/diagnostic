@@ -7,6 +7,7 @@ progress output. Supports both non-interactive (flags) and interactive
 
 import asyncio
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -97,6 +98,7 @@ _GOVERNANCE_SOURCE_WARNINGS: dict[str, str] = {
 def _governance_source_warning(source: str) -> str | None:
     return _GOVERNANCE_SOURCE_WARNINGS.get(source)
 
+
 PROVIDER_CHOICES = [
     "mock",
     "openai",
@@ -111,6 +113,7 @@ PROVIDER_CHOICES = [
 ]
 
 FORMAT_CHOICES = ["json", "markdown", "both"]
+
 
 def _resolve_concurrency(flag_value: int | None, no_parallel: bool) -> int:
     """Resolve effective concurrency from flag, env var, and --no-parallel.
@@ -151,6 +154,7 @@ def _resolve_concurrency(flag_value: int | None, no_parallel: bool) -> int:
 
     return DEFAULT_CONCURRENCY
 
+
 def _print_concurrency_banner(resolved: int) -> None:
     if resolved == 1:
         click.echo(
@@ -167,6 +171,7 @@ def _print_concurrency_banner(resolved: int) -> None:
             f"Note: concurrency={resolved} is above default 5. Dial down if you see 429s.",
             err=True,
         )
+
 
 @click.command()
 @click.option(
@@ -522,6 +527,16 @@ def run(
             param_hint="--run-nonce",
         )
     effective_run_nonce = run_nonce if run_nonce is not None else generate_run_nonce()
+
+    effective_b12_seed = b12_seed if b12_seed is not None else secrets.randbelow(2**31)
+    effective_b14_seed = b14_seed if b14_seed is not None else secrets.randbelow(2**31)
+    effective_b28_seed = b28_seed if b28_seed is not None else secrets.randbelow(2**31)
+    effective_b30_seed = b30_seed if b30_seed is not None else secrets.randbelow(2**31)
+    b12_seed_pinned = b12_seed is not None
+    b14_seed_pinned = b14_seed is not None
+    b28_seed_pinned = b28_seed is not None
+    b30_seed_pinned = b30_seed is not None
+
     print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
     _print_concurrency_banner(resolved_concurrency)
@@ -703,9 +718,7 @@ def run(
             )
             sys.exit(1)
         governance_fixture = GovernanceFixture.load(governance_path)
-        resolved_provider = wrap_with_governance(
-            resolved_provider, governance_fixture
-        )
+        resolved_provider = wrap_with_governance(resolved_provider, governance_fixture)
         governance_source = "wrap"
         click.echo(
             click.style(
@@ -947,10 +960,14 @@ def run(
         pipeline_config = EvaluationPipelineConfig(
             mode=internal_mode,
             judge_max_calls=judge_budget if judge_budget > 0 else 0,
-            b12_seed=b12_seed if b12_seed is not None else 20260422,
-            b14_seed=b14_seed if b14_seed is not None else 20260422,
-            b28_seed=b28_seed if b28_seed is not None else 20260422,
-            b30_seed=b30_seed if b30_seed is not None else 20260422,
+            b12_seed=effective_b12_seed,
+            b14_seed=effective_b14_seed,
+            b28_seed=effective_b28_seed,
+            b30_seed=effective_b30_seed,
+            b12_seed_pinned=b12_seed_pinned,
+            b14_seed_pinned=b14_seed_pinned,
+            b28_seed_pinned=b28_seed_pinned,
+            b30_seed_pinned=b30_seed_pinned,
         )
 
     judge_config = _build_judge_config(
@@ -978,9 +995,13 @@ def run(
     # (explicit or synth via `synthesize: true`) is composed onto the
     # provider here. Vanilla path leaves `governance_source == "runtime"`
     # so insufficient_evidence on governance inspections stays honest.
-    if governance_source == "runtime" and fixture_obj_for_grounding.governance is not None:
+    if (
+        governance_source == "runtime"
+        and fixture_obj_for_grounding.governance is not None
+    ):
         resolved_provider = wrap_with_governance(
-            resolved_provider, fixture_obj_for_grounding.governance,
+            resolved_provider,
+            fixture_obj_for_grounding.governance,
         )
         embedded_source = fixture_obj_for_grounding.governance_source or "explicit"
         governance_source = (
@@ -995,14 +1016,18 @@ def run(
         )
 
     effective_system_prompt = compose_system_prompt(
-        grounding_mode, fixture_obj_for_grounding, system_prompt,
+        grounding_mode,
+        fixture_obj_for_grounding,
+        system_prompt,
     )
     _GROUNDING_LABEL = {
-        GroundingMode.SUT:     "SUT-managed (the model uses its own system prompt; pass --grounding fixture to inject one)",
+        GroundingMode.SUT: "SUT-managed (the model uses its own system prompt; pass --grounding fixture to inject one)",
         GroundingMode.FIXTURE: "fixture-managed (fixture-derived prompt injected)",
-        GroundingMode.NONE:    "none (no system prompt injected)",
+        GroundingMode.NONE: "none (no system prompt injected)",
     }
-    click.echo(f"Grounding: {_GROUNDING_LABEL.get(grounding_mode, grounding_mode.value)}")
+    click.echo(
+        f"Grounding: {_GROUNDING_LABEL.get(grounding_mode, grounding_mode.value)}"
+    )
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -1036,6 +1061,22 @@ def run(
     if governance_warning is not None and governance_warning not in result.warnings:
         result.warnings.append(governance_warning)
 
+    _pinned = [
+        label
+        for label, pinned in (
+            ("B12", b12_seed_pinned),
+            ("B14", b14_seed_pinned),
+            ("B28", b28_seed_pinned),
+            ("B30", b30_seed_pinned),
+        )
+        if pinned
+    ]
+    if _pinned:
+        result.warnings.append(
+            f"Pinned seeds ({', '.join(_pinned)}): memorization resistance reduced"
+            " — score reproducibility increased."
+        )
+
     _print_category_summary(result)
 
     click.echo()
@@ -1047,9 +1088,7 @@ def run(
         if 0 < scored_categories < total_categories
         else ""
     )
-    score_label = (
-        "Partial Score:" if coverage_suffix else "Overall Score:"
-    )
+    score_label = "Partial Score:" if coverage_suffix else "Overall Score:"
     if result.self_judged:
         redacted = click.style("SELF-JUDGED (redacted)", fg="yellow")
         click.echo(f"  {score_label}    {redacted}{coverage_suffix}")
@@ -1115,14 +1154,16 @@ def run(
         fixture_digest=compute_fixture_digest(resolved_fixture_path),
         governance_fixture_digest=governance_fixture_digest_value,
         governance_source=governance_source,
-        mode_filter=(
-            [test] if test else (["strategic"] if strategic else ["all"])
-        ),
+        mode_filter=([test] if test else (["strategic"] if strategic else ["all"])),
         judge_identity=judge_identity_descriptor,
-        b12_seed=b12_seed if b12_seed is not None else 20260422,
-        b14_seed=b14_seed if b14_seed is not None else 20260422,
-        b28_seed=b28_seed if b28_seed is not None else 20260422,
-        b30_seed=b30_seed if b30_seed is not None else 20260422,
+        b12_seed=effective_b12_seed,
+        b14_seed=effective_b14_seed,
+        b28_seed=effective_b28_seed,
+        b30_seed=effective_b30_seed,
+        b12_seed_pinned=b12_seed_pinned,
+        b14_seed_pinned=b14_seed_pinned,
+        b28_seed_pinned=b28_seed_pinned,
+        b30_seed_pinned=b30_seed_pinned,
         holdout_seed=holdout_seed,
         holdout_ids=holdout.to_dict(),
         run_nonce=effective_run_nonce,
@@ -1144,7 +1185,9 @@ def run(
         )
         sys.exit(2)
     if result.overall_score < min_score:
-        scored_categories = sum(1 for cs in result.category_scores if cs.score is not None)
+        scored_categories = sum(
+            1 for cs in result.category_scores if cs.score is not None
+        )
         total_categories = len(result.category_scores)
         coverage_suffix = (
             f" ({scored_categories}/{total_categories} categories scored)"
@@ -1160,6 +1203,7 @@ def run(
             )
         )
         sys.exit(2)
+
 
 def gather_interactive_config() -> InteractiveConfig:
     """Run the interactive guided mode to collect provider configuration."""
@@ -1181,4 +1225,6 @@ def gather_interactive_config() -> InteractiveConfig:
     if click.confirm("Specify model?", default=False):
         model = click.prompt("Model identifier")
 
-    return InteractiveConfig(provider=provider, api_key=api_key, endpoint=endpoint, model=model)
+    return InteractiveConfig(
+        provider=provider, api_key=api_key, endpoint=endpoint, model=model
+    )

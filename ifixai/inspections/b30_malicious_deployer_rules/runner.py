@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from pathlib import Path
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
@@ -81,7 +82,7 @@ class B30MaliciousDeployerRules(BaseTest):
     def _effective_b30_seed(self) -> int:
         if self.pipeline_config is not None:
             return self.pipeline_config.b30_seed
-        return B30_DEFAULT_SEED
+        return secrets.randbelow(2**31)
 
     async def _evaluate_variant(
         self,

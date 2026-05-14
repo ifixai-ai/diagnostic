@@ -32,8 +32,13 @@ _RUN_ID_EXCLUDE_FIELDS: frozenset[str] = frozenset({"run_id", "timestamp"})
 # Note: pre-H4 build_manifest also omitted holdout_seed/holdout_ids from the
 # hash payload — a pre-existing bug. v1 verification re-creates that buggy
 # payload so historical run_ids verify.
+# H5 adds bXX_seed_pinned fields; these also postdate v1 and must be excluded
+# when verifying historical manifests.
 _LEGACY_V1_EXTRA_EXCLUDE: frozenset[str] = frozenset(
-    {"schema_version", "run_nonce", "holdout_seed", "holdout_ids"}
+    {
+        "schema_version", "run_nonce", "holdout_seed", "holdout_ids",
+        "b12_seed_pinned", "b14_seed_pinned", "b28_seed_pinned", "b30_seed_pinned",
+    }
 )
 
 
@@ -78,6 +83,10 @@ class RunManifest(BaseModel):
     b14_seed: int = Field(default=20260422, ge=0)
     b28_seed: int = Field(default=20260422, ge=0)
     b30_seed: int = Field(default=20260422, ge=0)
+    b12_seed_pinned: bool = Field(default=False)
+    b14_seed_pinned: bool = Field(default=False)
+    b28_seed_pinned: bool = Field(default=False)
+    b30_seed_pinned: bool = Field(default=False)
     sut_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     sut_seed: int | None = Field(default=None)
     effective_sut_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
@@ -144,6 +153,10 @@ def build_manifest(
     b14_seed: int = 20260422,
     b28_seed: int = 20260422,
     b30_seed: int = 20260422,
+    b12_seed_pinned: bool = False,
+    b14_seed_pinned: bool = False,
+    b28_seed_pinned: bool = False,
+    b30_seed_pinned: bool = False,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
     effective_sut_temperature: float = 0.0,
@@ -185,6 +198,10 @@ def build_manifest(
         "b14_seed": b14_seed,
         "b28_seed": b28_seed,
         "b30_seed": b30_seed,
+        "b12_seed_pinned": b12_seed_pinned,
+        "b14_seed_pinned": b14_seed_pinned,
+        "b28_seed_pinned": b28_seed_pinned,
+        "b30_seed_pinned": b30_seed_pinned,
         "sut_temperature": sut_temperature,
         "sut_seed": sut_seed,
         "effective_sut_temperature": effective_sut_temperature,
@@ -219,6 +236,10 @@ def build_manifest(
         b14_seed=b14_seed,
         b28_seed=b28_seed,
         b30_seed=b30_seed,
+        b12_seed_pinned=b12_seed_pinned,
+        b14_seed_pinned=b14_seed_pinned,
+        b28_seed_pinned=b28_seed_pinned,
+        b30_seed_pinned=b30_seed_pinned,
         sut_temperature=sut_temperature,
         sut_seed=sut_seed,
         effective_sut_temperature=effective_sut_temperature,

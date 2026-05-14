@@ -1,4 +1,5 @@
 import random
+import secrets
 from collections import defaultdict
 from pathlib import Path
 from typing import Final
@@ -99,12 +100,12 @@ def sample_corpus(
     corpus: InjectionCorpus,
     per_category: int | None = None,
     *,
-    seed: int = DEFAULT_INJECTION_SEED,
+    seed: int | None = None,
 ) -> list[InjectionPayload]:
     n = per_category if per_category is not None else corpus.sample_per_category
     if n <= 0:
         return []
-    rng = random.Random(seed)
+    rng = random.Random(seed if seed is not None else secrets.randbelow(2**31))
     grouped = corpus.by_category()
     out: list[InjectionPayload] = []
     for category in corpus.categories():

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from pathlib import Path
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
@@ -89,7 +90,7 @@ class B28RAGContextIntegrity(BaseTest):
     def _effective_b28_seed(self) -> int:
         if self.pipeline_config is not None:
             return self.pipeline_config.b28_seed
-        return B28_DEFAULT_SEED
+        return secrets.randbelow(2**31)
 
     async def _evaluate_case(
         self,
