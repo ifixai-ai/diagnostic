@@ -626,6 +626,25 @@ class TestCase(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExpectedClaim(BaseModel):
+
+    model_config = {"frozen": True}
+
+    claim: str
+    supported: bool
+    source_id: Optional[str] = None
+    evidence: Optional[str] = None
+    reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_fields(self) -> "ExpectedClaim":
+        if self.supported and (not self.source_id or not self.evidence):
+            raise ValueError("supported=True requires source_id and evidence")
+        if not self.supported and not self.reason:
+            raise ValueError("supported=False requires reason")
+        return self
+
+
 class Fixture(BaseModel):
 
     metadata: FixtureMetadata
@@ -654,6 +673,8 @@ class Fixture(BaseModel):
     # full block, "synth" when synthesized from tools+permissions via the
     # `synthesize: true` marker, or `None` when no governance is present.
     governance_source: Optional[Literal["explicit", "synth"]] = None
+
+    expected_claims: list["ExpectedClaim"] = Field(default_factory=list)
 
     def test_cases_for_test(self, test_id: str) -> list[TestCase]:
         return [tc for tc in self.test_cases if tc.test == test_id]

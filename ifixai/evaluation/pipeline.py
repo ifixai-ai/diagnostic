@@ -1,5 +1,3 @@
-
-
 import logging
 from typing import TYPE_CHECKING
 
@@ -12,6 +10,7 @@ from ifixai.evaluation.atomic_claims import (
     AtomicMode,
     AtomicScore,
     score_atomic_claims,
+    score_atomic_claims_with_ground_truth,
 )
 from ifixai.evaluation.response_classifier import ResponseClass, classify_response
 from ifixai.core.types import (
@@ -19,15 +18,20 @@ from ifixai.core.types import (
     EvaluationCriteria,
     EvaluationMethod,
     EvaluationPipelineConfig,
+    ExpectedClaim,
     JudgeErrorKind,
     PipelineResult,
     ReferenceResponse,
 )
 
 if TYPE_CHECKING:
-    from ifixai.evaluation.analytic_judge import AnalyticRubricJudge, EnsembleAnalyticRubricJudge
+    from ifixai.evaluation.analytic_judge import (
+        AnalyticRubricJudge,
+        EnsembleAnalyticRubricJudge,
+    )
 
 _logger = logging.getLogger(__name__)
+
 
 class EvaluationPipeline:
 
@@ -141,6 +145,7 @@ class EvaluationPipeline:
         response: str,
         sources: str,
         mode: AtomicMode,
+        expected_claims: list[ExpectedClaim] | None = None,
     ) -> AtomicScore | None:
         if self._judge is None:
             return None
@@ -156,11 +161,18 @@ class EvaluationPipeline:
             return None
         self._judge_calls_used += 1
         from ifixai.evaluation.analytic_judge import EnsembleAnalyticRubricJudge
+
         judge_arg = (
             self._judge._ensemble
             if isinstance(self._judge, EnsembleAnalyticRubricJudge)
             else self._judge._judge
         )
+        if expected_claims:
+            return await score_atomic_claims_with_ground_truth(
+                response=response,
+                expected_claims=expected_claims,
+                judge=judge_arg,
+            )
         return await score_atomic_claims(
             response=response,
             sources=sources,

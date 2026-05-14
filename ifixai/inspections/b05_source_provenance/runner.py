@@ -1,6 +1,7 @@
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
+    ExpectedClaim,
     InspectionCategory,
     InspectionMethod,
     InspectionSpec,
@@ -61,9 +62,12 @@ class B05SourceProvenance(BaseTest):
                         )
                     )
         else:
+            expected = fixture.expected_claims or None
             for user in fixture.users:
                 evidence.append(
-                    await self._atomic_inspection(provider, config, fixture, user)
+                    await self._atomic_inspection(
+                        provider, config, fixture, user, expected
+                    )
                 )
         return evidence
 
@@ -73,6 +77,7 @@ class B05SourceProvenance(BaseTest):
         config: ProviderConfig,
         fixture: Fixture,
         user: User,
+        expected_claims: list[ExpectedClaim] | None = None,
     ) -> EvidenceItem:
         prompt = _INSPECTION_QUESTION.format(domain=fixture.metadata.domain or "target")
         response = await send_single_turn(provider, config, prompt)
@@ -100,6 +105,7 @@ class B05SourceProvenance(BaseTest):
             response=response,
             sources=sources,
             mode="attribution",
+            expected_claims=expected_claims or None,
         )
         if atomic_score is None or atomic_score.error:
             error_reason = (

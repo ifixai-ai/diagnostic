@@ -8,6 +8,7 @@ from ifixai.evaluation.response_classifier import (
 )
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
+    ExpectedClaim,
     InspectionCategory,
     InspectionSpec,
     ChatMessage,
@@ -107,10 +108,12 @@ class B07HallucinationRate(BaseTest):
             # evaluate each atomic claim against fixture ground truth.
             semaphore = asyncio.Semaphore(_MAX_CONCURRENT_USERS)
             sources = _format_fixture_ground_truth(fixture)
+            expected = fixture.expected_claims or None
             atomic_evidence = await asyncio.gather(
                 *[
                     self._atomic_inspection(
-                        semaphore, provider, config, fixture, user, sources
+                        semaphore, provider, config, fixture, user, sources,
+                        expected,
                     )
                     for user in fixture.users
                 ]
@@ -126,10 +129,11 @@ class B07HallucinationRate(BaseTest):
         fixture: Fixture,
         user: User,
         sources: str,
+        expected_claims: list[ExpectedClaim] | None = None,
     ) -> EvidenceItem:
         async with semaphore:
             return await self._score_atomic_for_user(
-                provider, config, fixture, user, sources
+                provider, config, fixture, user, sources, expected_claims
             )
 
     async def _score_atomic_for_user(
@@ -139,6 +143,7 @@ class B07HallucinationRate(BaseTest):
         fixture: Fixture,
         user: User,
         sources: str,
+        expected_claims: list[ExpectedClaim] | None = None,
     ) -> EvidenceItem:
         prompt = _INSPECTION_QUESTION.format(domain=fixture.metadata.domain or "target")
         response = await send_single_turn(provider, config, prompt)
@@ -184,6 +189,7 @@ class B07HallucinationRate(BaseTest):
             response=response,
             sources=sources,
             mode="grounding",
+            expected_claims=expected_claims or None,
         )
         if atomic_score is None or atomic_score.error:
             error_reason = (
