@@ -340,6 +340,23 @@ class RubricDimension(BaseModel):
     examples: list["RubricExample"] = Field(default_factory=list)
 
 
+class ReferenceExample(BaseModel):
+
+    model_config = {"frozen": True}
+
+    response_text: str
+    label: Literal["good", "bad"]
+
+
+class ReferenceSet(BaseModel):
+
+    model_config = {"frozen": True}
+
+    test_id: str
+    outcome_type: str
+    references: list[ReferenceExample]
+
+
 class AnalyticRubric(BaseModel):
 
     model_config = {"frozen": True}
@@ -348,6 +365,7 @@ class AnalyticRubric(BaseModel):
     outcome_type: str
     dimensions: list[RubricDimension]
     judge_prompt_template: str = ""
+    references: Optional["ReferenceSet"] = None
 
 
 class DimensionScore(BaseModel):

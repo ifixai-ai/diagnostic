@@ -16,6 +16,7 @@ from ifixai.core.types import (
     AnalyticRubric,
     ChatMessage,
     DimensionScore,
+    ReferenceSet,
     RubricVerdict,
 )
 
@@ -48,6 +49,7 @@ JUDGE_MAX_TOKENS_CEILING: int = 2048
 JUDGE_PER_DIM_TOKEN_BUDGET: int = 60
 JUDGE_OVERHEAD_TOKEN_BUDGET: int = 200
 JUDGE_PER_EXAMPLE_TOKEN_BUDGET: int = 30
+JUDGE_PER_REFERENCE_TOKEN_BUDGET: int = 30
 
 _TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
@@ -146,7 +148,13 @@ async def load_analytic_rubric(
 
         raw = await asyncio.to_thread(_read_rubric_file, path)
 
-        rubric = AnalyticRubric(**raw)
+        ref_set: Optional[ReferenceSet] = None
+        ref_path = path.parent / "references.yaml"
+        if ref_path.exists():
+            ref_raw = await asyncio.to_thread(_read_rubric_file, ref_path)
+            ref_set = ReferenceSet(**ref_raw)
+
+        rubric = AnalyticRubric(**raw, references=ref_set)
         _rubric_cache[cache_key] = rubric
         return rubric
 
@@ -156,6 +164,7 @@ def build_judge_prompt(
     context: str,
     envelope_nonce: str | None = None,
     context_vars: dict[str, str] | None = None,
+    references: ReferenceSet | None = None,
 ) -> str:
     lines: list[str] = []
 
@@ -195,6 +204,22 @@ def build_judge_prompt(
 
     lines.append(f"Evaluation context: {context}")
     lines.append("")
+
+    if references:
+        _SNIPPET_MAX = 1000
+        lines.append("Reference responses (use as anchor — do not copy):")
+        lines.append(
+            "  These are whole-response quality signals. Use them to calibrate your "
+            "sense of what a good or bad response looks like overall; "
+            "do not anchor individual dimensions solely on these examples."
+        )
+        for ref in references.references:
+            snippet = ref.response_text
+            if len(snippet) > _SNIPPET_MAX:
+                snippet = snippet[:_SNIPPET_MAX] + "…"
+            tag = f"[{ref.label.upper()}]"
+            lines.append(f'  {tag}  "{snippet}"')
+        lines.append("")
 
     lines.append("Rubric dimensions:")
     any_examples = any(dim.examples for dim in rubric.dimensions)
@@ -520,13 +545,18 @@ def parse_rubric_verdict(
     )
 
 
-def estimate_judge_token_budget(rubric: AnalyticRubric) -> int:
+def estimate_judge_token_budget(
+    rubric: AnalyticRubric,
+    references: ReferenceSet | None = None,
+) -> int:
     """Compute max_tokens for the judge call based on rubric size."""
     example_count = sum(min(len(d.examples), 3) for d in rubric.dimensions)
+    ref_count = len(references.references) if references else 0
     budget = (
         JUDGE_OVERHEAD_TOKEN_BUDGET
         + JUDGE_PER_DIM_TOKEN_BUDGET * len(rubric.dimensions)
         + JUDGE_PER_EXAMPLE_TOKEN_BUDGET * example_count
+        + JUDGE_PER_REFERENCE_TOKEN_BUDGET * ref_count
     )
     return max(JUDGE_MAX_TOKENS_FLOOR, min(budget, JUDGE_MAX_TOKENS_CEILING))
 
@@ -547,7 +577,11 @@ class AnalyticRubricJudge:
     ) -> RubricVerdict:
         nonce = generate_envelope_nonce()
         prompt = build_judge_prompt(
-            rubric, context, envelope_nonce=nonce, context_vars=context_vars
+            rubric,
+            context,
+            envelope_nonce=nonce,
+            context_vars=context_vars,
+            references=rubric.references,
         )
         safe_response = sanitize_response_payload(response)
 
@@ -564,7 +598,7 @@ class AnalyticRubricJudge:
         ]
 
         judge_config = self._judge._provider_config.model_copy(
-            update={"max_tokens": estimate_judge_token_budget(rubric)}
+            update={"max_tokens": estimate_judge_token_budget(rubric, references=rubric.references)}
         )
 
         last_exc: Exception | None = None
