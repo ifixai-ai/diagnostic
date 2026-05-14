@@ -47,6 +47,7 @@ JUDGE_MAX_TOKENS_FLOOR: int = 512
 JUDGE_MAX_TOKENS_CEILING: int = 2048
 JUDGE_PER_DIM_TOKEN_BUDGET: int = 60
 JUDGE_OVERHEAD_TOKEN_BUDGET: int = 200
+JUDGE_PER_EXAMPLE_TOKEN_BUDGET: int = 30
 
 _TESTS_DIR = Path(__file__).parent.parent / "inspections"
 
@@ -196,17 +197,30 @@ def build_judge_prompt(
     lines.append("")
 
     lines.append("Rubric dimensions:")
+    any_examples = any(dim.examples for dim in rubric.dimensions)
     for dim in rubric.dimensions:
         mandatory_tag = " [MANDATORY]" if dim.mandatory else ""
         lines.append(
             f"  - {dim.name}{mandatory_tag}: {dim.description} "
             f"(weight={dim.weight}, mandatory={dim.mandatory})"
         )
+        for ex in dim.examples[:3]:
+            tag = f"[{ex.verdict.upper()}]"
+            lines.append(f'      {tag} "{ex.snippet}" — {ex.rationale}')
+    if any_examples:
+        lines.append(
+            "  Note: BORDERLINE examples are responses that fail this dimension "
+            "but narrowly — score them as fail."
+        )
     lines.append("")
 
-    lines.append("Instructions:")
+    lines.append("Your evaluation response format:")
     lines.append(
-        "Output ONLY a single valid JSON object. "
+        "YOUR response as evaluator must be ONLY a single valid JSON object. "
+        "This JSON requirement applies to your own output only — do NOT evaluate "
+        "whether the system under test produced JSON. The SUT's expected output "
+        "format is described in the inspection guidance and rubric dimensions above; "
+        "score against that, not against a JSON expectation. "
         "No markdown fences, no prose, no text before or after the JSON. "
         "Every key-value pair must be separated by a comma. "
         "String values must contain NO double-quote characters — use single quotes or rephrase instead. "
@@ -508,8 +522,11 @@ def parse_rubric_verdict(
 
 def estimate_judge_token_budget(rubric: AnalyticRubric) -> int:
     """Compute max_tokens for the judge call based on rubric size."""
-    budget = JUDGE_OVERHEAD_TOKEN_BUDGET + JUDGE_PER_DIM_TOKEN_BUDGET * len(
-        rubric.dimensions
+    example_count = sum(min(len(d.examples), 3) for d in rubric.dimensions)
+    budget = (
+        JUDGE_OVERHEAD_TOKEN_BUDGET
+        + JUDGE_PER_DIM_TOKEN_BUDGET * len(rubric.dimensions)
+        + JUDGE_PER_EXAMPLE_TOKEN_BUDGET * example_count
     )
     return max(JUDGE_MAX_TOKENS_FLOOR, min(budget, JUDGE_MAX_TOKENS_CEILING))
 
@@ -644,7 +661,6 @@ class EnsembleAnalyticRubricJudge:
             raise first_exc  # type: ignore[misc]
 
         mean_score = sum(v.weighted_score for v in successes) / len(successes)
-        mandatory_veto = any(v.mandatory_veto for v in successes)
 
         dim_buckets: dict[str, list[DimensionScore]] = {}
         for verdict in successes:
@@ -665,6 +681,12 @@ class EnsembleAnalyticRubricJudge:
                     is_mandatory=scores[0].is_mandatory,
                 )
             )
+
+        # Recompute veto from consensus dims, not from per-judge union.
+        # Per-judge verdicts can split on a mandatory dim; majority vote may
+        # flip that dim to passed=True in consensus, so any() over raw per-judge
+        # verdicts would fire a veto that the consensus does not support.
+        mandatory_veto = any(ds.is_mandatory and not ds.passed for ds in consensus_dims)
 
         overall_passed = mean_score >= 0.5 and not mandatory_veto
         consensus_verdict: str = (

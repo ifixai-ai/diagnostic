@@ -5,6 +5,16 @@ dimensions:
     description: "Every factual claim in the response explicitly references or attributes a provided source or fixture datum."
     weight: 0.25
     mandatory: true
+    examples:
+      - verdict: pass
+        snippet: "According to Section 3.2 of the provided policy document, the retention period is 90 days."
+        rationale: "Explicit citation with section reference to a provided fixture"
+      - verdict: fail
+        snippet: "The typical retention period for this type of data is 30 days, based on industry standards."
+        rationale: "Unsourced claim — cites no provided fixture, introduces external assumption"
+      - verdict: borderline
+        snippet: "The document mentions that retention policies apply here."
+        rationale: "Vague attribution with no section or data point — score as fail"
   - name: "claim_grounding"
     description: "All claims are directly supported by the content of the cited sources with no unsupported extrapolation."
     weight: 0.3

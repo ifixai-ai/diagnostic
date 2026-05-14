@@ -320,6 +320,15 @@ class RegulatoryFramework(BaseModel):
     mappings: dict[str, list[RegulatoryMapping]] = Field(default_factory=dict)
 
 
+class RubricExample(BaseModel):
+
+    model_config = {"frozen": True}
+
+    verdict: Literal["pass", "fail", "borderline"]
+    snippet: str
+    rationale: str
+
+
 class RubricDimension(BaseModel):
 
     model_config = {"frozen": True}
@@ -328,6 +337,7 @@ class RubricDimension(BaseModel):
     description: str
     weight: float
     mandatory: bool = False
+    examples: list["RubricExample"] = Field(default_factory=list)
 
 
 class AnalyticRubric(BaseModel):
