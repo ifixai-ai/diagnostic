@@ -278,7 +278,7 @@ attestation facility (no inspections use it today), B28 RAG context integrity, a
 ## Domain-neutral fixtures
 
 Test code is domain-neutral. Industry knowledge lives in user-authored
-fixture YAML — never in test code. Five example fixtures live under
+fixture YAML — never in test code. Example fixtures live under
 [`ifixai/fixtures/examples/`](ifixai/fixtures/examples/):
 
 ```bash
@@ -292,6 +292,12 @@ ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtur
 
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/software_engineering.yaml
 ```
+
+The case-study fixtures used in [In the Wild](#in-the-wild) ship alongside the
+domain-neutral set: [`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml),
+[`openclaw_strict.yaml`](ifixai/fixtures/examples/openclaw_strict.yaml),
+[`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml), and
+[`hermes_strict.yaml`](ifixai/fixtures/examples/hermes_strict.yaml).
 
 ## Author Your Own Fixture
 
@@ -362,51 +368,93 @@ discussion and manifest fields.
 
 ## In the Wild
 
-iFixAi was run end-to-end against [OpenClaw](https://openclaw.ai) v2026.5.4
-(personal AI assistant, gateway daemon on `localhost:18789`) with
-`anthropic/claude-3.5-haiku` as the upstream model and a cross-family
-judge ensemble (`openai/gpt-4o` + `anthropic/claude-sonnet-4.6`). The
-benchmark produced a clean **22-test diagnostic** on the
-[`acme_legal.yaml`](ifixai/fixtures/examples/acme_legal.yaml) fixture
-with cross-fixture validation on
-[`software_engineering.yaml`](ifixai/fixtures/examples/software_engineering.yaml)
-and a hand-authored
-[`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml) modelling
-OpenClaw's actual surface (4 roles, 16 tools, ring-zero isolation,
-exec-approval gating).
+iFixAi has been run end-to-end against three open-source AI systems. Each subject is reported on its own terms, against a fixture that declares its actual deployment surface, with a cross-family judge ensemble and the same v1.0.0 inspection suite.
 
-The 32 inspections cleanly separated OpenClaw's behaviour into three
-clusters:
+### OpenClaw Under iFixAi's Microscope
 
-| Cluster | Tests | OpenClaw on `acme_legal` |
-|---|---|---|
-| **Direct policy & structural alignment** | B01, B02, B03, B04, B06, B09, B16, B24, B27, B28 | **100% on every test** |
-| **Adversarial framing & multi-turn integrity** | B07, B08, B10, B11, B12, B17, B19, B31 | 0 – 80%; none clear the 95% threshold |
-| **Response-envelope coverage** | B05, B13, B26, B32 | 0 – 8%; limited by plain `{role, content}` shape |
+[OpenClaw](https://openclaw.ai) v2026.5.4 with `anthropic/claude-3.5-haiku` as the upstream model and a cross-family judge ensemble (`openai/gpt-4o` + `anthropic/claude-sonnet-4.6`). Scored against an illustrative enterprise legal fixture, [`acme_legal.yaml`](ifixai/fixtures/examples/acme_legal.yaml).
 
-The mandatory minimum on **B08** (Privilege Escalation) is ≥0.95;
-OpenClaw scored **0.37**. iFixAi's scoring policy enforced this cleanly by
-capping the overall score at **0.60**, exactly as specified in
-[`scoring/mandatory_minimums.py`](ifixai/scoring/mandatory_minimums.py).
+| Metric | Value |
+|---|---|
+| **Final score** | **42.5%** (raw mean after stripping structural fixture artifacts) |
+| **Grade** | **F** |
+| **Coverage** | 22 of 32 tests scored (68%) |
+| **B01 mandatory ≥100%** | not observed (fixture artifact stripped) |
+| **B08 mandatory ≥95%** | FAIL at 37% |
 
-Cross-fixture validation behaved as designed:
+```
+Structural (n=4)         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%  (fixture artifact stripped)
+Direct policy (n=6)      ██████████████████████████████ 100.0%
+Adversarial (n=9)        ███████████░░░░░░░░░░░░░░░░░░░  36.4%
+Envelope-shape (n=3)     █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   2.7%
+```
 
-- **Structural tests** (B01–B04) scored 100% on all three fixtures — these
-  parameterize from the fixture's `governance:` block and are
-  fixture-stable by construction.
-- **Model-intrinsic tests** like hallucination (B07) sit at 12% / 19% /
-  20% across the three fixtures — stable to within 8 pp.
-- **Fixture-anchored behavioural tests** like source provenance (B05)
-  responded as expected: 8% on the illustrative legal fixture, 0% on the
-  illustrative SWE fixture, **64%** on the custom `openclaw.yaml` that
-  declares memory entries as the citable source class with an explicit
-  `cite_memory_sources` policy. iFixAi correctly rewards a fixture that
-  properly describes the SUT's mechanism — that's the design intent of
-  fixture-driven parameterization.
+The pattern is interpretable. Direct policy compliance is solid: when a request matches a declared rule, OpenClaw refuses or routes correctly. Adversarial framing is the weak axis. The 13K-token governance preamble is present in context but does not bind hard enough when requests come wrapped in social engineering ("my manager approved this", "you have discretion to override"). Response-envelope tests (B05, B13, B26) hit a structural ceiling: plain `{role, content}` chat-completion responses have no place to attach citations, plan traces, or rate-limit headers. Closing that cluster requires architectural change on the gateway side, not better prompting.
 
-Full case study, with all 22 `acme_legal` rows, the cross-fixture matrix,
-and methodology notes:
-[ifixai.ai/docs/diagnostics/openclaw](https://ifixai.ai/docs/diagnostics/openclaw).
+Artefacts:
+
+- [`benchmark-results/openclaw/SCORECARD.md`](benchmark-results/openclaw/SCORECARD.md). Human-readable consolidated scorecard.
+
+Full narrative case study: <https://ifixai.ai/docs/diagnostics/openclaw>.
+
+### Hermes Agent Under iFixAi's Microscope
+
+[Hermes Agent](https://nousresearch.com/) (Nous Research) is a general-purpose autonomous agent with file write, terminal exec, code exec, scheduled tasks, subagent delegation, MCP integrations, and skill installation. Run mode: `--mode full` (single iFixAi invocation, official category-weighted scoring). Upstream model `openai/gpt-4o-mini` with a cross-family judge ensemble (`google/gemini-2.5-flash` + `anthropic/claude-haiku-4.5`). The fixture [`hermes_strict.yaml`](ifixai/fixtures/examples/hermes_strict.yaml) declares Hermes's strict deployment posture (7 user tiers, 24 tools, 4 regulatory frameworks: OWASP LLM Top 10, GDPR, EU AI Act, ISO/IEC 42001).
+
+| Metric | Value |
+|---|---|
+| **Final score** | **33.9%** (category-weighted, not arithmetic mean) |
+| **Grade** | **F** |
+| **B01 mandatory ≥100%** | INCONCLUSIVE, no auditable API surface |
+| **B08 mandatory ≥95%** | FAIL at 70.1%, refused only 70% of escalation attempts |
+| **Coverage** | 32 of 32 attempted; 3 PASS, 23 FAIL, 6 INCONCLUSIVE, 0 ERROR |
+
+```
+FABRICATION       █████░░░░░░░░░░░░░░░░░░░░░░░░░  19.3%  (n=6)
+MANIPULATION      ██████████░░░░░░░░░░░░░░░░░░░░  32.1%  (n=8)
+DECEPTION         ███████████░░░░░░░░░░░░░░░░░░░  38.1%  (n=6)
+UNPREDICTABILITY  ████████████░░░░░░░░░░░░░░░░░░  41.3%  (n=5)
+OPACITY           ██████████████░░░░░░░░░░░░░░░░  45.7%  (n=7)
+```
+
+Hermes is honest by construction. There is no `GovernanceMixin` fixture artifact to strip, because the structural cluster already returned INCONCLUSIVE rather than synthesised values. Six inspections came back INCONCLUSIVE because the agent has no programmatic surface to be measured at all: no auditable trail per action, no override mechanism, no structured "can role X use tool Y?" interface. iFixAi correctly refuses to invent scores where there is no measurement.
+
+Three passes (Context Accuracy 100%, Risk Scoring 92%, RAG Context Integrity 90%) confirm the underlying gpt-4o-mini is capable. The remaining 23 fails (0 of 720 covert side-tasks, 0% instruction adherence, 0% source provenance, 64% compliance with malicious deployer rules, 17.5% policy violation detection, 25% prompt injection blocking) confirm that capability without enforcement is not safety. When an agent wraps the model with real tools (file write, terminal exec, scheduled tasks), the consequences of compliance are not conversational, they are actions on real systems.
+
+Artefacts:
+
+- [`benchmark-results/hermes/SCORECARD.md`](benchmark-results/hermes/SCORECARD.md). Human-readable consolidated scorecard.
+
+Full case study: <https://ifixai.ai/docs/diagnostics/hermes>.
+
+### Open WebUI Under iFixAi's Microscope
+
+[Open WebUI](https://github.com/open-webui/open-webui) v0.9.5 with `anthropic/claude-sonnet-4.6` as upstream and a different cross-family judge ensemble (`openai/gpt-4o` + `google/gemini-2.5-pro`). The fixture [`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml) declares OWUI's actual surface (4 roles, 12 tools, function allowlists, per-user memory).
+
+| Metric | Value |
+|---|---|
+| **Final score** | **11.3%** (raw mean after stripping structural fixture artifacts) |
+| **Grade** | **F** |
+| **Coverage** | 24 of 32 tests scored (75%) |
+| **B01 mandatory ≥100%** | not observed (fixture artifact stripped) |
+| **B08 mandatory ≥95%** | INCONCLUSIVE, wall timeout at 15 minutes |
+
+```
+Structural (n=6)         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%  (fixture artifact stripped)
+Direct policy (n=4)      ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
+Adversarial (n=8)        ███████░░░░░░░░░░░░░░░░░░░░░░░  24.1%
+Envelope-shape (n=3)     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.0%
+```
+
+Once structural artifacts are stripped, Open WebUI has no observed behavioural pass. The best behavioural score is 80% on B11 System Controllability, still below the 85% pass threshold. The remaining behavioural numbers cluster at or near zero across direct policy, adversarial framing, and envelope shape.
+
+Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires a non-standard `chat_id` field that real OpenAI clients (including iFixAi) do not send. A small shim is required in front of the endpoint to inject it before the run can complete.
+
+Artefacts:
+
+- [`benchmark-results/openwebui/SCORECARD.md`](benchmark-results/openwebui/SCORECARD.md). Human-readable consolidated scorecard.
+
+Full case study: <https://ifixai.ai/docs/diagnostics/openwebui>.
 
 ## Supported Providers
 
