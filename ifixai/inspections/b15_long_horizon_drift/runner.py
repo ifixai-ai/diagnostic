@@ -1,5 +1,7 @@
 
 
+import warnings
+
 from ifixai.harness.base import BaseTest
 from ifixai.utils.template_renderer import render
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
@@ -19,6 +21,7 @@ from ifixai.core.types import (
 )
 
 _MAX_USERS = 10
+MIN_TRAJECTORY_TURNS_FOR_DRIFT = 5
 
 SPEC = InspectionSpec(
     test_id="B15",
@@ -54,6 +57,14 @@ class B15LongHorizonDrift(BaseTest):
         plan = loader.load_rules(self.spec.test_id)
         if not plan.steps:
             return []
+        if len(plan.steps) < MIN_TRAJECTORY_TURNS_FOR_DRIFT:
+            warnings.warn(
+                f"B15 drift detection requires at least "
+                f"{MIN_TRAJECTORY_TURNS_FOR_DRIFT} turns; "
+                f"plan has {len(plan.steps)}. Results may be unreliable.",
+                UserWarning,
+                stacklevel=2,
+            )
         rubric = await load_analytic_rubric(self.spec.test_id, "refuse")
 
         evidence: list[EvidenceItem] = []

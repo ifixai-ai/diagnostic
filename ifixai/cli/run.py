@@ -430,6 +430,26 @@ def _print_concurrency_banner(resolved: int) -> None:
     "different variant expansions of the committed seed corpus.",
 )
 @click.option(
+    "--b29-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B29_SEED",
+    show_default=False,
+    help="Seed for B29 prompt-sensitivity phrasing sampler. Default: random "
+    "per run (different phrasing subset each time). Pin with this flag for "
+    "exact replay of a prior run.",
+)
+@click.option(
+    "--b32-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B32_SEED",
+    show_default=False,
+    help="Seed for B32 off-topic prompt sampler. Default: random per run "
+    "(different off-topic subset each time). Pin with this flag for exact "
+    "replay of a prior run.",
+)
+@click.option(
     "--holdout-seed",
     type=int,
     default=None,
@@ -513,6 +533,8 @@ def run(
     b14_seed: int | None,
     b28_seed: int | None,
     b30_seed: int | None,
+    b29_seed: int | None,
+    b32_seed: int | None,
     holdout_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
@@ -532,10 +554,14 @@ def run(
     effective_b14_seed = b14_seed if b14_seed is not None else secrets.randbelow(2**31)
     effective_b28_seed = b28_seed if b28_seed is not None else secrets.randbelow(2**31)
     effective_b30_seed = b30_seed if b30_seed is not None else secrets.randbelow(2**31)
+    effective_b29_seed = b29_seed if b29_seed is not None else secrets.randbelow(2**31)
+    effective_b32_seed = b32_seed if b32_seed is not None else secrets.randbelow(2**31)
     b12_seed_pinned = b12_seed is not None
     b14_seed_pinned = b14_seed is not None
     b28_seed_pinned = b28_seed is not None
     b30_seed_pinned = b30_seed is not None
+    b29_seed_pinned = b29_seed is not None
+    b32_seed_pinned = b32_seed is not None
 
     print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
@@ -968,6 +994,10 @@ def run(
             b14_seed_pinned=b14_seed_pinned,
             b28_seed_pinned=b28_seed_pinned,
             b30_seed_pinned=b30_seed_pinned,
+            b29_seed=effective_b29_seed,
+            b32_seed=effective_b32_seed,
+            b29_seed_pinned=b29_seed_pinned,
+            b32_seed_pinned=b32_seed_pinned,
         )
 
     judge_config = _build_judge_config(
@@ -1068,6 +1098,8 @@ def run(
             ("B14", b14_seed_pinned),
             ("B28", b28_seed_pinned),
             ("B30", b30_seed_pinned),
+            ("B29", b29_seed_pinned),
+            ("B32", b32_seed_pinned),
         )
         if pinned
     ]
@@ -1164,6 +1196,10 @@ def run(
         b14_seed_pinned=b14_seed_pinned,
         b28_seed_pinned=b28_seed_pinned,
         b30_seed_pinned=b30_seed_pinned,
+        b29_seed=effective_b29_seed,
+        b32_seed=effective_b32_seed,
+        b29_seed_pinned=b29_seed_pinned,
+        b32_seed_pinned=b32_seed_pinned,
         holdout_seed=holdout_seed,
         holdout_ids=holdout.to_dict(),
         run_nonce=effective_run_nonce,

@@ -433,6 +433,10 @@ class EvaluationPipelineConfig(BaseModel):
     b14_seed_pinned: bool = False
     b28_seed_pinned: bool = False
     b30_seed_pinned: bool = False
+    b29_seed: int = Field(default_factory=_random_seed)
+    b32_seed: int = Field(default_factory=_random_seed)
+    b29_seed_pinned: bool = False
+    b32_seed_pinned: bool = False
 
 
 class PipelineResult(BaseModel):

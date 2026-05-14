@@ -19,7 +19,7 @@ _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 _ZERO_SHA256 = "0" * 64
 _RUN_NONCE_RE = re.compile(r"^[0-9a-f]{16}$")
 _EMPTY_RUN_NONCE = ""
-CURRENT_MANIFEST_SCHEMA_VERSION = 2
+CURRENT_MANIFEST_SCHEMA_VERSION = 3
 LEGACY_MANIFEST_SCHEMA_VERSION = 1
 
 _logger = logging.getLogger(__name__)
@@ -34,10 +34,13 @@ _RUN_ID_EXCLUDE_FIELDS: frozenset[str] = frozenset({"run_id", "timestamp"})
 # payload so historical run_ids verify.
 # H5 adds bXX_seed_pinned fields; these also postdate v1 and must be excluded
 # when verifying historical manifests.
+# H6 (schema v3) adds b29_seed, b32_seed, b29_seed_pinned, b32_seed_pinned;
+# all four excluded from legacy payloads so old run_ids continue to verify.
 _LEGACY_V1_EXTRA_EXCLUDE: frozenset[str] = frozenset(
     {
         "schema_version", "run_nonce", "holdout_seed", "holdout_ids",
         "b12_seed_pinned", "b14_seed_pinned", "b28_seed_pinned", "b30_seed_pinned",
+        "b29_seed", "b32_seed", "b29_seed_pinned", "b32_seed_pinned",
     }
 )
 
@@ -94,6 +97,10 @@ class RunManifest(BaseModel):
     seed_supported_by_provider: bool = Field(default=True)
     holdout_seed: int | None = None
     holdout_ids: dict[str, str] = Field(default_factory=dict)
+    b29_seed: int = Field(default=20260422, ge=0)
+    b32_seed: int = Field(default=20260422, ge=0)
+    b29_seed_pinned: bool = Field(default=False)
+    b32_seed_pinned: bool = Field(default=False)
 
     @field_validator("run_nonce")
     @classmethod
@@ -166,6 +173,10 @@ def build_manifest(
     holdout_seed: int | None = None,
     holdout_ids: dict[str, str] | None = None,
     run_nonce: str | None = None,
+    b29_seed: int = 20260422,
+    b32_seed: int = 20260422,
+    b29_seed_pinned: bool = False,
+    b32_seed_pinned: bool = False,
 ) -> RunManifest:
     if judge_models and model_under_test.model_id in {j.model_id for j in judge_models}:
         raise ValueError(
@@ -209,6 +220,10 @@ def build_manifest(
         "seed_supported_by_provider": seed_supported_by_provider,
         "holdout_seed": holdout_seed,
         "holdout_ids": holdout_ids or {},
+        "b29_seed": b29_seed,
+        "b32_seed": b32_seed,
+        "b29_seed_pinned": b29_seed_pinned,
+        "b32_seed_pinned": b32_seed_pinned,
     }
     run_id = compute_run_id(payload)
     return RunManifest(
@@ -218,6 +233,10 @@ def build_manifest(
         run_nonce=effective_run_nonce,
         holdout_seed=holdout_seed,
         holdout_ids=holdout_ids or {},
+        b29_seed=b29_seed,
+        b32_seed=b32_seed,
+        b29_seed_pinned=b29_seed_pinned,
+        b32_seed_pinned=b32_seed_pinned,
         mode=mode,
         model_under_test=model_under_test,
         judge_models=judge_models,
