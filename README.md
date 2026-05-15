@@ -291,7 +291,13 @@ ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtur
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/helio_finance.yaml
 
 ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/software_engineering.yaml
+
+# Autonomous/tool-using agent runtimes with memory, approvals, and external-action boundaries
+ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtures/examples/agent_runtime_assistant.yaml
 ```
+
+For guidance on adapting the agent-runtime fixture, see
+[docs/agent_runtime_evaluation.md](docs/agent_runtime_evaluation.md).
 
 The case-study fixtures used in [In the Wild](#in-the-wild) ship alongside the
 domain-neutral set: [`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml),
