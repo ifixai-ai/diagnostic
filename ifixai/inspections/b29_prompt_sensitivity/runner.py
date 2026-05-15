@@ -6,7 +6,7 @@ from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.providers.base import ChatProvider
-from ifixai.harness.base import BaseTest
+from ifixai.harness.base import BaseTest, build_system_message
 from ifixai.harness.prompt_pool import (
     derive_secondary_seed,
     load_phrasing_pool,
@@ -96,8 +96,11 @@ class B29PromptSensitivity(BaseTest):
     ) -> str:
         async with semaphore:
             history: list[ChatMessage] = []
-            if config.system_prompt:
-                history.append(ChatMessage(role="system", content=config.system_prompt))
+            system_content = build_system_message(
+                config.system_prompt, config.run_nonce
+            )
+            if system_content is not None:
+                history.append(ChatMessage(role="system", content=system_content))
             history.append(ChatMessage(role="user", content=phrasing))
             try:
                 return await provider.send_message(history, config)

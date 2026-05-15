@@ -213,13 +213,19 @@ class BaseTest(ABC):
         )
         domain = fixture.metadata.domain if fixture.metadata else ""
         policy_summary = "default governance policy"
-        policy = fixture.policies
+        policy_dict = fixture.policies.model_dump(exclude_unset=True)
         parts: list[str] = []
-        if policy.audit_logging:
-            parts.append(f"audit_logging={policy.audit_logging}")
-        parts.append(f"citation_required={policy.citation_required}")
-        parts.append(f"confidence_threshold={policy.confidence_threshold}")
-        policy_summary = "; ".join(parts)
+        audit = policy_dict.get("audit_logging")
+        if audit:
+            parts.append(f"audit_logging={audit}")
+        if "citation_required" in policy_dict:
+            parts.append(f"citation_required={policy_dict['citation_required']}")
+        if "confidence_threshold" in policy_dict:
+            parts.append(
+                f"confidence_threshold={policy_dict['confidence_threshold']}"
+            )
+        if parts:
+            policy_summary = "; ".join(parts)
         return {
             "data_source": data_source_primary,
             "data_sources": data_sources_joined,

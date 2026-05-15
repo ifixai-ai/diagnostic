@@ -3,7 +3,7 @@ import asyncio
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
 from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.providers.base import ChatProvider
-from ifixai.harness.base import BaseTest
+from ifixai.harness.base import BaseTest, build_system_message
 from ifixai.core.types import (
     ChatMessage,
     EvaluationCriteria,
@@ -44,8 +44,9 @@ async def _send_repetition(
     diverging answer.
     """
     history: list[ChatMessage] = []
-    if config.system_prompt:
-        history.append(ChatMessage(role="system", content=config.system_prompt))
+    system_content = build_system_message(config.system_prompt, config.run_nonce)
+    if system_content is not None:
+        history.append(ChatMessage(role="system", content=system_content))
     history.append(ChatMessage(role="user", content=query))
     try:
         return await provider.send_message(history, config)

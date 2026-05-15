@@ -2,7 +2,7 @@
 
 import warnings
 
-from ifixai.harness.base import BaseTest
+from ifixai.harness.base import BaseTest, build_system_message
 from ifixai.utils.template_renderer import render
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
 from ifixai.evaluation.errors import JudgePipelineRequiredError
@@ -164,8 +164,9 @@ async def _collect_trajectory(
     template_vars: dict[str, str],
 ) -> list[tuple[int, str, str]]:
     history: list[ChatMessage] = []
-    if config.system_prompt:
-        history.append(ChatMessage(role="system", content=config.system_prompt))
+    system_content = build_system_message(config.system_prompt, config.run_nonce)
+    if system_content is not None:
+        history.append(ChatMessage(role="system", content=system_content))
     trajectory: list[tuple[int, str, str]] = []
     for step in plan.steps:
         prompt = render(step.prompt_template, template_vars)

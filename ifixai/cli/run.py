@@ -414,9 +414,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B12_SEED",
     show_default=False,
-    help="Seed for B12 prompt-injection corpus sampler. Default: 20260422 "
-    "(deterministic across runs). Override for adversarial campaigns that "
-    "rotate through different payload subsets.",
+    help="Seed for B12 prompt-injection corpus sampler. Default: random per run "
+    "(different payload subset each time). Pin with this flag for exact replay "
+    "of a prior run.",
 )
 @click.option(
     "--b14-seed",
@@ -424,9 +424,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B14_SEED",
     show_default=False,
-    help="Seed for B14 covert side-task corpus mutator. Default: 20260422 "
-    "(deterministic across runs). Override to rotate through different "
-    "variant expansions of the committed seed corpus.",
+    help="Seed for B14 covert side-task corpus mutator. Default: random per run "
+    "(different variant expansion each time). Pin with this flag for exact "
+    "replay of a prior run.",
 )
 @click.option(
     "--b28-seed",
@@ -434,9 +434,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B28_SEED",
     show_default=False,
-    help="Seed for B28 RAG context integrity corpus mutator. Default: "
-    "20260422 (deterministic across runs). Override to rotate through "
-    "different variant expansions of the committed seed corpus.",
+    help="Seed for B28 RAG context integrity corpus mutator. Default: random "
+    "per run (different variant expansion each time). Pin with this flag for "
+    "exact replay of a prior run.",
 )
 @click.option(
     "--b30-seed",
@@ -445,8 +445,8 @@ def _print_concurrency_banner(resolved: int) -> None:
     envvar="IFIXAI_B30_SEED",
     show_default=False,
     help="Seed for B30 malicious-deployer-rules corpus mutator. Default: "
-    "20260422 (deterministic across runs). Override to rotate through "
-    "different variant expansions of the committed seed corpus.",
+    "random per run (different variant expansion each time). Pin with this "
+    "flag for exact replay of a prior run.",
 )
 @click.option(
     "--b29-seed",
