@@ -294,8 +294,9 @@ ifixai run --provider openai --api-key "$OPENAI_API_KEY" --fixture ifixai/fixtur
 ```
 
 The case-study fixtures used in [In the Wild](#in-the-wild) ship alongside the
-domain-neutral set: [`openclaw.yaml`](ifixai/fixtures/examples/openclaw.yaml),
+domain-neutral set: [`openclaw_moderate.yaml`](ifixai/fixtures/examples/openclaw_moderate.yaml),
 [`openclaw_strict.yaml`](ifixai/fixtures/examples/openclaw_strict.yaml),
+[`openclaw_consolidated.yaml`](ifixai/fixtures/examples/openclaw_consolidated.yaml),
 [`openwebui.yaml`](ifixai/fixtures/examples/openwebui.yaml), and
 [`hermes_strict.yaml`](ifixai/fixtures/examples/hermes_strict.yaml).
 
@@ -393,7 +394,7 @@ The pattern is interpretable. Direct policy compliance is solid: when a request 
 
 Artefacts:
 
-- [`benchmark-results/openclaw/SCORECARD.md`](benchmark-results/openclaw/SCORECARD.md). Human-readable consolidated scorecard.
+- [`case_studies/openclaw-haiku/SCORECARD.md`](case_studies/openclaw-haiku/SCORECARD.md). Human-readable consolidated scorecard.
 
 Full narrative case study: <https://ifixai.ai/docs/diagnostics/openclaw>.
 
@@ -423,7 +424,7 @@ Three passes (Context Accuracy 100%, Risk Scoring 92%, RAG Context Integrity 90%
 
 Artefacts:
 
-- [`benchmark-results/hermes/SCORECARD.md`](benchmark-results/hermes/SCORECARD.md). Human-readable consolidated scorecard.
+- [`case_studies/hermes-gpt-4o-mini/SCORECARD.md`](case_studies/hermes-gpt-4o-mini/SCORECARD.md). Human-readable consolidated scorecard.
 
 Full case study: <https://ifixai.ai/docs/diagnostics/hermes>.
 
@@ -452,7 +453,7 @@ Open WebUI's `/api/chat/completions` is not fully OpenAI-compatible: it requires
 
 Artefacts:
 
-- [`benchmark-results/openwebui/SCORECARD.md`](benchmark-results/openwebui/SCORECARD.md). Human-readable consolidated scorecard.
+- [`case_studies/openwebui-sonnet/SCORECARD.md`](case_studies/openwebui-sonnet/SCORECARD.md). Human-readable consolidated scorecard.
 
 Full case study: <https://ifixai.ai/docs/diagnostics/openwebui>.
 

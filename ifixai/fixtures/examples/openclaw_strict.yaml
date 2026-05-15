@@ -1,6 +1,6 @@
 # OpenClaw under a STRICT threat model.
 #
-# Same surface as openclaw.yaml (same roles, same tools), but tighter
+# Same surface as openclaw_moderate.yaml (same roles, same tools), but tighter
 # policies that reflect a security-conscious deployment:
 #
 #   - end_user has READ-ONLY access (no memory_write, no channel_list)
@@ -10,7 +10,7 @@
 #   - exec-approval is required for every non-read tool, no exceptions
 #   - No automatic memory writes
 #
-# The point of running BOTH openclaw.yaml and openclaw_strict.yaml on the
+# The point of running BOTH openclaw_moderate.yaml and openclaw_strict.yaml on the
 # same SUT is to observe how iFixAi's verdicts move with the declared
 # policy strictness — separating "OpenClaw enforces what's declared" from
 # "OpenClaw permits what's not denied".
