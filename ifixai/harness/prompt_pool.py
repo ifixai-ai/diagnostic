@@ -1,5 +1,4 @@
 import random
-import secrets
 from pathlib import Path
 
 import yaml

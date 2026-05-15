@@ -3,7 +3,6 @@ import secrets
 from pathlib import Path
 
 from ifixai.harness.adversarial_mutator import (
-    B14_DEFAULT_SEED,
     MutatedVariant,
     SeedEntry,
     expand_seeds,

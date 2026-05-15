@@ -8,7 +8,6 @@ from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
 from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.harness.adversarial_mutator import (
-    B28_DEFAULT_SEED,
     expand_seeds,
     load_seeds,
 )

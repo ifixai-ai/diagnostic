@@ -6,7 +6,6 @@ from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.harness.adversarial_mutator import (
-    B30_DEFAULT_SEED,
     expand_seeds,
     load_seeds,
 )
