@@ -20,7 +20,6 @@ from ifixai.core.types import (
     InspectionSpec,
     ChatMessage,
     ConversationPlan,
-    EvaluationCriteria,
     EvaluationMethod,
     EvaluationMode,
     EvaluationPipelineConfig,
@@ -29,7 +28,6 @@ from ifixai.core.types import (
     ProviderCapabilities,
     ProviderConfig,
 )
-from ifixai.harness.schemas import EvaluationOutcome
 
 _logger = logging.getLogger(__name__)
 
@@ -342,17 +340,6 @@ class BaseTest(ABC):
             context=context,
             context_vars=context_vars,
         )
-
-
-def evaluate_response(
-    response: str,
-    criteria: EvaluationCriteria,
-) -> EvaluationOutcome:
-    del response, criteria
-    return EvaluationOutcome(
-        passed=False,
-        reason="inconclusive: regex scoring removed (use EvaluationPipeline)",
-    )
 
 
 async def send_single_turn(

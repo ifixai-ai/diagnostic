@@ -115,7 +115,7 @@ class EvaluationPipeline:
 
         return PipelineResult(
             passed=False,
-            evaluation_result="inconclusive: no judge configured (regex scoring removed)",
+            evaluation_result="inconclusive: no judge configured",
             evaluation_method=EvaluationMethod.JUDGE,
         )
 
