@@ -556,6 +556,7 @@ class TestRunResult(BaseModel):
     regulatory_frameworks: list[str] = Field(default_factory=list)
     judge_stats: Optional[dict[str, Any]] = None
     warnings: list[str] = Field(default_factory=list)
+    validation_warnings: list[str] = Field(default_factory=list)
     self_judged: bool = False
 
 

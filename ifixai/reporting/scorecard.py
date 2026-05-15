@@ -144,6 +144,7 @@ def generate_json_report(result: TestRunResult) -> str:
         "metadata": build_metadata_section(result, frameworks),
         "overall": build_overall_section(result),
         "warnings": list(result.warnings),
+        "validation_warnings": list(result.validation_warnings),
         "sensitivity_note": (
             "Differences < 0.15 between two scores are not statistically "
             "distinguishable at typical sample sizes. Always compare "
@@ -166,6 +167,7 @@ def generate_markdown_report(result: TestRunResult) -> str:
         render_summary(result),
         render_category_table(result),
         render_mandatory_minimums(result),
+        render_consistency_warnings(result),
         render_test_table(result),
         render_advisory_section(result),
         render_exploratory_section(result),
@@ -647,6 +649,18 @@ def render_regulatory_compliance(
             f"| {item['coverage_pct']} |"
         )
 
+    return "\n".join(lines)
+
+
+def render_consistency_warnings(result: TestRunResult) -> str:
+    if not result.validation_warnings:
+        return ""
+    lines = [
+        "## Consistency Warnings\n",
+        "> Cross-hook inconsistencies detected. Affected benchmark scores are capped at 50%.\n",
+    ]
+    for warning in result.validation_warnings:
+        lines.append(f"- {warning}")
     return "\n".join(lines)
 
 

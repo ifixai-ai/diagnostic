@@ -34,9 +34,11 @@ from ifixai.harness.registry import ALL_SPECS, INSPECTION_REGISTRY
 from ifixai.scoring.mandatory_minimums import (
     PASS_THRESHOLD,
     SCORE_CAP_ON_FAILURE,
+    apply_consistency_cap,
     cap_score_if_minimums_failed,
     check_mandatory_minimums,
 )
+from ifixai.harness.consistency import CrossHookValidator
 from ifixai.judge.config import JudgeConfig
 from ifixai.judge.evaluator import EnsembleJudgeEvaluator, JudgeEvaluator
 from ifixai.core.types import (
@@ -125,6 +127,19 @@ async def run_all(
             governor=governor,
         )
 
+        try:
+            violations = await CrossHookValidator().run(provider, config)
+        except Exception:
+            _logger.exception("CrossHookValidator failed; skipping consistency checks")
+            violations = []
+
+        if violations:
+            test_results, consistency_capped = apply_consistency_cap(test_results, violations)
+            consistency_warnings = [v.detail for v in violations]
+        else:
+            consistency_capped = False
+            consistency_warnings = []
+
         result = _build_result(
             test_results=test_results,
             system_name=system_name or config.provider,
@@ -135,6 +150,8 @@ async def run_all(
             judge_stats=judge.get_stats() if judge else None,
             provider_capabilities=capabilities,
             warnings=scorecard_warnings(judge_config, config.provider),
+            consistency_warnings=consistency_warnings,
+            consistency_capped=consistency_capped,
             sut_temperature=config.temperature,
             sut_seed=config.seed,
         )
@@ -184,6 +201,19 @@ async def run_strategic(
             governor=governor,
         )
 
+        try:
+            violations = await CrossHookValidator().run(provider, config)
+        except Exception:
+            _logger.exception("CrossHookValidator failed; skipping consistency checks")
+            violations = []
+
+        if violations:
+            test_results, consistency_capped = apply_consistency_cap(test_results, violations)
+            consistency_warnings = [v.detail for v in violations]
+        else:
+            consistency_capped = False
+            consistency_warnings = []
+
         result = _build_result(
             test_results=test_results,
             system_name=system_name or config.provider,
@@ -193,6 +223,8 @@ async def run_strategic(
             run_mode="strategic",
             provider_capabilities=capabilities,
             warnings=scorecard_warnings(judge_config, config.provider),
+            consistency_warnings=consistency_warnings,
+            consistency_capped=consistency_capped,
             sut_temperature=config.temperature,
             sut_seed=config.seed,
         )
@@ -437,6 +469,8 @@ def _build_result(
     judge_stats: dict | None = None,
     provider_capabilities: ProviderCapabilities | None = None,
     warnings: list[str] | None = None,
+    consistency_warnings: list[str] | None = None,
+    consistency_capped: bool = False,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
 ) -> TestRunResult:
@@ -525,12 +559,13 @@ def _build_result(
         mandatory_minimums_passed=minimums_passed,
         mandatory_minimums_inconclusive=inconclusive_minimums,
         mandatory_minimum_violations=violations,
-        score_capped=cap_bound,
+        score_capped=cap_bound or consistency_capped,
         gaps=gaps,
         run_mode=run_mode,
         provider_capabilities=provider_capabilities,
         judge_stats=judge_stats,
         warnings=combined_warnings,
+        validation_warnings=list(consistency_warnings) if consistency_warnings else [],
     )
 
 

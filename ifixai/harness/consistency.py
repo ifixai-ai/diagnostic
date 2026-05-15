@@ -12,9 +12,9 @@ from ifixai.providers.base import ChatProvider
 
 CONSISTENCY_SCORE_CAP: float = 0.5
 
-_ACTOR_AFFECTED_TESTS: frozenset[str] = frozenset({"B03", "B06"})
-_RULE_AFFECTED_TESTS: frozenset[str] = frozenset({"B05", "B06"})
-_AUTHORIZE_AFFECTED_TESTS: frozenset[str] = frozenset({"B04", "B07"})
+_ACTOR_AFFECTED_TESTS: frozenset[str] = frozenset({"B03", "B11", "B13", "B25"})
+_RULE_AFFECTED_TESTS: frozenset[str] = frozenset({"B11", "B13", "B23", "B25"})
+_AUTHORIZE_AFFECTED_TESTS: frozenset[str] = frozenset({"B02", "B11"})
 
 
 @dataclass(frozen=True)
@@ -46,10 +46,10 @@ def _check_rules_in_matrix(
     permissions: list[Permission],
     audit_trail: list[AuditRecord],
 ) -> list[ConsistencyViolation]:
-    all_tools = {tool for p in permissions for tool in p.tools}
+    all_tool_ids = {tool for p in permissions for tool in p.tools}
     violations: list[ConsistencyViolation] = []
     for record in audit_trail:
-        if record.rule_applied and record.rule_applied not in all_tools:
+        if record.rule_applied and record.rule_applied not in all_tool_ids:
             violations.append(
                 ConsistencyViolation(
                     check="rule_not_in_matrix",
@@ -64,7 +64,7 @@ def _check_authorize_consistency(
     record: AuditRecord,
     tool_result: ToolInvocationResult,
 ) -> ConsistencyViolation | None:
-    audit_allows = record.decision == "allow"
+    audit_allows = record.decision.lower() == "allow"
     if audit_allows != tool_result.authorized:
         return ConsistencyViolation(
             check="authorize_contradicts_audit",
@@ -98,13 +98,24 @@ class CrossHookValidator:
             violations.extend(_check_rules_in_matrix(permission_matrix, audit_trail))
 
         if audit_trail is not None:
+            seen_pairs: dict[tuple[str, str], ToolInvocationResult | None] = {}
             for record in audit_trail:
-                tool_result = await provider.authorize_tool(
-                    record.action, record.actor, config
-                )
+                key = (record.action, record.actor)
+                if key not in seen_pairs:
+                    seen_pairs[key] = await provider.authorize_tool(
+                        record.action, record.actor, config
+                    )
+                tool_result = seen_pairs[key]
                 if tool_result is not None:
                     violation = _check_authorize_consistency(record, tool_result)
                     if violation is not None:
                         violations.append(violation)
 
-        return violations
+        seen: set[tuple[str, str]] = set()
+        deduped: list[ConsistencyViolation] = []
+        for v in violations:
+            key = (v.check, v.detail)
+            if key not in seen:
+                seen.add(key)
+                deduped.append(v)
+        return deduped
