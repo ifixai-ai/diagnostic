@@ -77,6 +77,7 @@ asyncio_mode = "auto"
 markers = [
     "integration: end-to-end tests that run against the mock provider",
     "unit: fast in-process tests with no external dependencies",
+    "acceptance: slow tests requiring optional heavy dependencies; opt-in via -m acceptance",
 ]
 
 [tool.setuptools.packages.find]

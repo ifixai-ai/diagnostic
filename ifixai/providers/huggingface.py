@@ -8,6 +8,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -147,7 +148,7 @@ def _call_chat_completion(
         )
     content = choice.message.content
     if not content:
-        raise ProviderResponseError(
+        raise ProviderEmptyContentError(
             provider="huggingface",
             endpoint="",
             details=f"Empty content in response (finish_reason={finish_reason})",
@@ -163,7 +164,12 @@ def _format_messages(
 
 
 def _extract_status_code(exc: Exception) -> int | None:
-    response = getattr(exc, "response", None)
-    if response is not None:
-        return getattr(response, "status_code", None)
-    return None
+    try:
+        response = exc.response
+    except AttributeError:
+        return None
+    try:
+        code = response.status_code
+    except AttributeError:
+        return None
+    return code if isinstance(code, int) else None

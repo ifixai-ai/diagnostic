@@ -9,6 +9,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -78,7 +79,7 @@ class GeminiProvider(ChatProvider):
                     if hasattr(part, "text") and part.text
                 ]
                 if not text_parts:
-                    raise ProviderResponseError(
+                    raise ProviderEmptyContentError(
                         provider="gemini",
                         endpoint=endpoint,
                         details="No text parts in response candidate",

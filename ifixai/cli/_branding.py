@@ -9,8 +9,7 @@ from typing import Iterable
 
 import click
 
-from ifixai.core.types import InspectionCategory
-
+from ifixai.core.types import InspectionCategory, InspectionSpec
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -64,11 +63,11 @@ _ACCENT_RGB = (232, 99, 42)
 _DIM_RGB = (110, 110, 117)
 
 _CATEGORY_COLORS: dict[InspectionCategory, tuple[int, int, int]] = {
-    InspectionCategory.FABRICATION:      (255, 139, 92),
-    InspectionCategory.MANIPULATION:     (255, 99, 99),
-    InspectionCategory.DECEPTION:        (167, 139, 250),
+    InspectionCategory.FABRICATION: (255, 139, 92),
+    InspectionCategory.MANIPULATION: (255, 99, 99),
+    InspectionCategory.DECEPTION: (167, 139, 250),
     InspectionCategory.UNPREDICTABILITY: (251, 191, 36),
-    InspectionCategory.OPACITY:          (96, 165, 250),
+    InspectionCategory.OPACITY: (96, 165, 250),
 }
 
 _CATEGORY_ORDER: tuple[InspectionCategory, ...] = (
@@ -132,7 +131,10 @@ class CategoryProgress:
 
     @classmethod
     def from_totals(cls, totals: dict[InspectionCategory, int]) -> "CategoryProgress":
-        rows = {cat: _CategoryRow(category=cat, total=totals.get(cat, 0)) for cat in _CATEGORY_ORDER}
+        rows = {
+            cat: _CategoryRow(category=cat, total=totals.get(cat, 0))
+            for cat in _CATEGORY_ORDER
+        }
         return cls(rows=rows)
 
     def start(self) -> None:
@@ -215,10 +217,13 @@ class CategoryProgress:
         return out
 
 
-def category_totals_from_specs(specs: Iterable[object]) -> dict[InspectionCategory, int]:
+def category_totals_from_specs(
+    specs: Iterable[object],
+) -> dict[InspectionCategory, int]:
     counts: dict[InspectionCategory, int] = {cat: 0 for cat in _CATEGORY_ORDER}
     for spec in specs:
-        cat = getattr(spec, "category", None)
-        if isinstance(cat, InspectionCategory):
-            counts[cat] = counts.get(cat, 0) + 1
+        if not isinstance(spec, InspectionSpec):
+            continue
+        cat = spec.category
+        counts[cat] = counts.get(cat, 0) + 1
     return counts

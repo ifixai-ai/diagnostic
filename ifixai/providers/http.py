@@ -39,7 +39,7 @@ def _load_env_extra_headers() -> dict[str, str]:
 def _build_auth_headers(config: ProviderConfig) -> dict[str, str]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if config.api_key:
-        auth_method = getattr(config, "auth_method", "bearer")
+        auth_method = config.auth_method
         if auth_method == "basic":
             encoded = base64.b64encode(config.api_key.encode()).decode()
             headers["Authorization"] = f"Basic {encoded}"
@@ -84,6 +84,28 @@ class HttpProvider(ChatProvider):
 
     def __init__(self) -> None:
         self._last_sources: dict[str, list[RetrievedSource]] = {}
+        self._session: aiohttp.ClientSession | None = None
+        self._session_lock = asyncio.Lock()
+
+    async def get_session(self) -> aiohttp.ClientSession:
+        """Return a long-lived aiohttp session shared across calls.
+
+        Reusing one ClientSession amortizes TCP/TLS setup across hundreds of
+        LLM round trips per run. The session is created lazily on first use
+        and released by aclose() at orchestrator teardown.
+        """
+        if self._session is not None and not self._session.closed:
+            return self._session
+        async with self._session_lock:
+            if self._session is not None and not self._session.closed:
+                return self._session
+            self._session = aiohttp.ClientSession()
+            return self._session
+
+    async def aclose(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+        self._session = None
 
     async def send_message(
         self,
@@ -133,29 +155,29 @@ class HttpProvider(ChatProvider):
         config: ProviderConfig,
     ) -> str:
         endpoint = config.endpoint or DEFAULT_ENDPOINT
+        session = await self.get_session()
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url, json=payload, headers=headers) as resp:
-                    if resp.status == 401 or resp.status == 403:
-                        raise ProviderAuthError(
-                            provider="http", endpoint=endpoint,
-                            details=f"HTTP {resp.status}: authentication failed",
-                        )
-                    if resp.status == 429:
-                        raise ProviderRateLimitError(
-                            provider="http", endpoint=endpoint,
-                            details="HTTP 429: rate limited",
-                        )
-                    if resp.status >= 400:
-                        body = await resp.text()
-                        raise ProviderResponseError(
-                            provider="http", endpoint=endpoint,
-                            details=f"HTTP {resp.status}: {scrub_secrets(body[:500])}",
-                        )
+            async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+                if resp.status == 401 or resp.status == 403:
+                    raise ProviderAuthError(
+                        provider="http", endpoint=endpoint,
+                        details=f"HTTP {resp.status}: authentication failed",
+                    )
+                if resp.status == 429:
+                    raise ProviderRateLimitError(
+                        provider="http", endpoint=endpoint,
+                        details="HTTP 429: rate limited",
+                    )
+                if resp.status >= 400:
+                    body = await resp.text()
+                    raise ProviderResponseError(
+                        provider="http", endpoint=endpoint,
+                        details=f"HTTP {resp.status}: {scrub_secrets(body[:500])}",
+                    )
 
-                    data = await resp.json()
-                    self._capture_sources(endpoint.rstrip("/"), data)
-                    return self._extract_response_text(data, endpoint)
+                data = await resp.json()
+                self._capture_sources(endpoint.rstrip("/"), data)
+                return self._extract_response_text(data, endpoint)
 
         except aiohttp.ClientConnectionError as exc:
             raise ProviderConnectionError(
@@ -210,19 +232,19 @@ class HttpProvider(ChatProvider):
         timeout = aiohttp.ClientTimeout(total=config.timeout)
         payload: dict[str, Any] = {"query": query}
 
+        session = await self.get_session()
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url, json=payload, headers=headers) as resp:
-                    if resp.status >= 400:
-                        return self._last_sources.get(endpoint)
-                    data = await resp.json()
-                    raw = data.get("sources")
-                    if not isinstance(raw, list):
-                        return self._last_sources.get(endpoint)
-                    return [
-                        _source_item_to_retrieved(s)
-                        for s in raw
-                        if isinstance(s, dict)
-                    ]
+            async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+                if resp.status >= 400:
+                    return self._last_sources.get(endpoint)
+                data = await resp.json()
+                raw = data.get("sources")
+                if not isinstance(raw, list):
+                    return self._last_sources.get(endpoint)
+                return [
+                    _source_item_to_retrieved(s)
+                    for s in raw
+                    if isinstance(s, dict)
+                ]
         except (aiohttp.ClientError, asyncio.TimeoutError):
             return self._last_sources.get(endpoint)

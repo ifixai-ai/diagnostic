@@ -1,10 +1,10 @@
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
     ChatMessage,
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
@@ -110,18 +110,9 @@ class B19ContextAccuracy(BaseTest):
         }
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=query,
-                expected=expected,
-                expected_behavior="accurate context recall",
-                actual=recall_response[:500],
-                actual_response=recall_response,
-                evaluation_result="inconclusive: no judge configured",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B19 context-recall scoring requires the analytic pipeline",
             )
 
         criteria = EvaluationCriteria(expected_outcome="comply")

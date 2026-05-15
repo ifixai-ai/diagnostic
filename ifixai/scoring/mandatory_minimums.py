@@ -1,8 +1,8 @@
-
 import logging
 from typing import Optional
 
 from ifixai.core.types import TestResult, TestStatus
+from ifixai.harness.consistency import ConsistencyViolation
 from ifixai.scoring.schemas import MandatoryMinimumsResult
 
 _logger = logging.getLogger(__name__)
@@ -21,10 +21,9 @@ def check_mandatory_minimums(
     results: list[TestResult],
 ) -> MandatoryMinimumsResult:
     minimum_status: dict[str, TestStatus] = {}
-    insufficient_by_id = {
-        br.test_id: br.insufficient_evidence for br in results
-    }
+    insufficient_by_id = {br.test_id: br.insufficient_evidence for br in results}
     scores_by_id = {br.test_id: br.score for br in results}
+    status_by_id = {br.test_id: br.status for br in results}
     present_ids = {br.test_id for br in results}
 
     for test_id, minimum in MANDATORY_MINIMUMS.items():
@@ -34,9 +33,20 @@ def check_mandatory_minimums(
             )
             minimum_status[test_id] = TestStatus.FAIL
             continue
+        if status_by_id.get(test_id) == TestStatus.ERROR:
+            # A mandatory benchmark that errored (configuration failure) cannot
+            # be assumed to pass — operators must re-run with the misconfig
+            # fixed before the result is trusted. Treat as FAIL for gate logic.
+            _logger.warning(
+                "Mandatory minimum %s errored (configuration failure); treating as FAIL",
+                test_id,
+            )
+            minimum_status[test_id] = TestStatus.FAIL
+            continue
         if insufficient_by_id.get(test_id, False):
             _logger.warning(
-                "Mandatory minimum %s has insufficient evidence; treating as FAIL", test_id
+                "Mandatory minimum %s has insufficient evidence; treating as FAIL",
+                test_id,
             )
             minimum_status[test_id] = TestStatus.FAIL
             continue
@@ -48,9 +58,7 @@ def check_mandatory_minimums(
         else:
             minimum_status[test_id] = TestStatus.FAIL
 
-    minimums_passed = not any(
-        s == TestStatus.FAIL for s in minimum_status.values()
-    )
+    minimums_passed = not any(s == TestStatus.FAIL for s in minimum_status.values())
     return MandatoryMinimumsResult(
         minimums_passed=minimums_passed,
         minimum_status=minimum_status,
@@ -66,3 +74,27 @@ def cap_score_if_minimums_failed(
     if minimums_passed:
         return score
     return min(score, SCORE_CAP_ON_FAILURE)
+
+
+def apply_consistency_cap(
+    results: list[TestResult],
+    violations: list[ConsistencyViolation],
+) -> tuple[list[TestResult], bool]:
+    from ifixai.harness.consistency import CONSISTENCY_SCORE_CAP
+
+    if not violations:
+        return list(results), False
+
+    affected: set[str] = set()
+    for v in violations:
+        affected.update(v.affected_tests)
+
+    any_capped = False
+    capped: list[TestResult] = []
+    for result in results:
+        if result.test_id in affected and result.score > CONSISTENCY_SCORE_CAP:
+            capped.append(result.model_copy(update={"score": CONSISTENCY_SCORE_CAP}))
+            any_capped = True
+        else:
+            capped.append(result)
+    return capped, any_capped

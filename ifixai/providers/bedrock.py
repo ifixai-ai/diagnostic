@@ -9,6 +9,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -169,7 +170,7 @@ def _invoke_converse(
     content_blocks = message.get("content", [])
 
     if not content_blocks:
-        raise ProviderResponseError(
+        raise ProviderEmptyContentError(
             provider="bedrock",
             endpoint="",
             details="Empty content in Bedrock converse response",

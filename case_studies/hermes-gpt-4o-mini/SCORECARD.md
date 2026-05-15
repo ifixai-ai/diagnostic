@@ -29,15 +29,6 @@
   OPACITY            ██████████████░░░░░░░░░░░░░░░░  45.7%  (n=7)
 ```
 
-## Cluster averages (scored tests only, informational)
-
-```
-  structural         ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0.8%  (n=2)
-  direct policy      ███████████████████████░░░░░░░  75.8%  (n=6)
-  adversarial        ██████████████░░░░░░░░░░░░░░░░  46.0%  (n=8)
-  envelope           ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.9%  (n=2)
-```
-
 ## Mandatory minimums
 
 | Test | Threshold | Status | Score |

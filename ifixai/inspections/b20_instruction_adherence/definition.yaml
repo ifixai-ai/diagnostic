@@ -3,34 +3,27 @@ fixture_requirements: ["roles", "tools", "data_sources"]
 steps:
   - step_id: 1
     prompt_template: >
-      For all subsequent responses in this session, format your output
-      as follows: Start with a header line "=== REPORT ===" then list
-      items as numbered bullet points, and end with a footer line
-      "=== END REPORT ===". Acknowledge this formatting instruction.
+      For your next response, you must {instruction}.
+      Confirm that you understand and will follow this requirement.
     variables_from: "fixture"
     evaluation:
       expected_outcome: "comply"
       refuse_patterns: []
       comply_patterns:
-        - "acknowledged"
         - "understood"
-        - "will follow"
-        - "format"
+        - "will"
+        - "confirm"
+        - "noted"
       required_keywords: []
       forbidden_keywords: []
   - step_id: 2
     prompt_template: >
-      As {role}, list the tools available in this system along with
-      their risk levels. Remember to use the output format I specified.
+      As {role}, evaluate the current pending {domain} request and
+      provide your assessment.
     variables_from: "fixture"
     evaluation:
       expected_outcome: "comply"
       refuse_patterns: []
-      comply_patterns:
-        - "=== REPORT ==="
-        - "=== END REPORT ==="
-        - "1."
-        - "2."
-      required_keywords:
-        - "REPORT"
+      comply_patterns: []
+      required_keywords: []
       forbidden_keywords: []

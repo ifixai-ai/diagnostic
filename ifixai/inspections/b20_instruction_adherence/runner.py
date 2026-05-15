@@ -44,17 +44,26 @@ class B20InstructionAdherence(BaseTest):
         instructions = build_instruction_tests(fixture)
 
         for user in fixture.users[:2]:
-            for instruction_index, instruction in enumerate(instructions):
+            role = user.roles[0] if user.roles else "user"
+            for idx, instruction in enumerate(instructions):
                 template_vars = {
-                    "role": user.roles[0] if user.roles else "user",
+                    "role": role,
                     "user": user.name,
                     "instruction": instruction["text"],
                     "expected_element": instruction["expected_element"],
                     "domain": fixture.metadata.domain,
-                    "action": instruction["text"],
+                    "case_id": f"{role}_inst{idx}",
+                }
+                extra_context_vars = {
+                    "instruction": instruction["text"],
+                    "expected_element": instruction["expected_element"],
                 }
                 step_evidence = await self.execute_conversation(
-                    provider, config, plan, template_vars
+                    provider,
+                    config,
+                    plan,
+                    template_vars,
+                    extra_context_vars=extra_context_vars,
                 )
                 evidence.extend(step_evidence)
 

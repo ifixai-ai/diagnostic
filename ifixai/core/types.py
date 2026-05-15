@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
@@ -88,6 +89,8 @@ class ProviderConfig(BaseModel):
     seed: Optional[int] = None
     max_tokens: Optional[int] = None
     holdout_ids: dict[str, str] = Field(default_factory=dict)
+    auth_method: Literal["bearer", "basic", "api_key", "none"] = "bearer"
+    run_nonce: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{16}$")
 
 
 class ToolInfo(BaseModel):
@@ -319,6 +322,15 @@ class RegulatoryFramework(BaseModel):
     mappings: dict[str, list[RegulatoryMapping]] = Field(default_factory=dict)
 
 
+class RubricExample(BaseModel):
+
+    model_config = {"frozen": True}
+
+    verdict: Literal["pass", "fail", "borderline"]
+    snippet: str
+    rationale: str
+
+
 class RubricDimension(BaseModel):
 
     model_config = {"frozen": True}
@@ -327,6 +339,24 @@ class RubricDimension(BaseModel):
     description: str
     weight: float
     mandatory: bool = False
+    examples: list["RubricExample"] = Field(default_factory=list)
+
+
+class ReferenceExample(BaseModel):
+
+    model_config = {"frozen": True}
+
+    response_text: str
+    label: Literal["good", "bad"]
+
+
+class ReferenceSet(BaseModel):
+
+    model_config = {"frozen": True}
+
+    test_id: str
+    outcome_type: str
+    references: list[ReferenceExample]
 
 
 class AnalyticRubric(BaseModel):
@@ -337,6 +367,7 @@ class AnalyticRubric(BaseModel):
     outcome_type: str
     dimensions: list[RubricDimension]
     judge_prompt_template: str = ""
+    references: Optional["ReferenceSet"] = None
 
 
 class DimensionScore(BaseModel):
@@ -383,6 +414,10 @@ class ConfidenceInterval(BaseModel):
     warning: Optional[str] = None
 
 
+def _random_seed() -> int:
+    return secrets.randbelow(2**31)
+
+
 class EvaluationPipelineConfig(BaseModel):
 
     model_config = {"frozen": True}
@@ -390,10 +425,18 @@ class EvaluationPipelineConfig(BaseModel):
     mode: EvaluationMode = EvaluationMode.DETERMINISTIC
     judge_max_calls: int = 200
     ci_confidence_level: float = 0.95
-    b12_seed: int = 20260422
-    b14_seed: int = 20260422
-    b28_seed: int = 20260422
-    b30_seed: int = 20260422
+    b12_seed: int = Field(default_factory=_random_seed)
+    b14_seed: int = Field(default_factory=_random_seed)
+    b28_seed: int = Field(default_factory=_random_seed)
+    b30_seed: int = Field(default_factory=_random_seed)
+    b12_seed_pinned: bool = False
+    b14_seed_pinned: bool = False
+    b28_seed_pinned: bool = False
+    b30_seed_pinned: bool = False
+    b29_seed: int = Field(default_factory=_random_seed)
+    b32_seed: int = Field(default_factory=_random_seed)
+    b29_seed_pinned: bool = False
+    b32_seed_pinned: bool = False
 
 
 class PipelineResult(BaseModel):
@@ -513,6 +556,7 @@ class TestRunResult(BaseModel):
     regulatory_frameworks: list[str] = Field(default_factory=list)
     judge_stats: Optional[dict[str, Any]] = None
     warnings: list[str] = Field(default_factory=list)
+    validation_warnings: list[str] = Field(default_factory=list)
     self_judged: bool = False
 
 
@@ -625,6 +669,25 @@ class TestCase(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExpectedClaim(BaseModel):
+
+    model_config = {"frozen": True}
+
+    claim: str
+    supported: bool
+    source_id: Optional[str] = None
+    evidence: Optional[str] = None
+    reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_fields(self) -> "ExpectedClaim":
+        if self.supported and (not self.source_id or not self.evidence):
+            raise ValueError("supported=True requires source_id and evidence")
+        if not self.supported and not self.reason:
+            raise ValueError("supported=False requires reason")
+        return self
+
+
 class Fixture(BaseModel):
 
     metadata: FixtureMetadata
@@ -653,6 +716,8 @@ class Fixture(BaseModel):
     # full block, "synth" when synthesized from tools+permissions via the
     # `synthesize: true` marker, or `None` when no governance is present.
     governance_source: Optional[Literal["explicit", "synth"]] = None
+
+    expected_claims: list["ExpectedClaim"] = Field(default_factory=list)
 
     def test_cases_for_test(self, test_id: str) -> list[TestCase]:
         return [tc for tc in self.test_cases if tc.test == test_id]

@@ -43,9 +43,14 @@ async def classify_response(
     query: str,
     judge_provider: ChatProvider,
     judge_config: ProviderConfig,
+    embedding_classifier=None,
 ) -> ResponseClass:
     if not response_text or not response_text.strip():
         return ResponseClass.ERROR
+    if embedding_classifier is not None:
+        cls = embedding_classifier.classify(response_text)
+        if cls != ResponseClass.UNKNOWN:
+            return cls
     user_content = (
         f"Query: {query}\n\n"
         f"Response:\n{response_text}\n\n"

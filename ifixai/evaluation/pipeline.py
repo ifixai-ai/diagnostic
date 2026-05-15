@@ -1,5 +1,3 @@
-
-
 import logging
 from typing import TYPE_CHECKING
 
@@ -8,10 +6,12 @@ from ifixai.evaluation.analytic_judge import (
     JudgeContractError,
     JudgeExtractionError,
 )
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.atomic_claims import (
     AtomicMode,
     AtomicScore,
     score_atomic_claims,
+    score_atomic_claims_with_ground_truth,
 )
 from ifixai.evaluation.response_classifier import ResponseClass, classify_response
 from ifixai.core.types import (
@@ -19,15 +19,20 @@ from ifixai.core.types import (
     EvaluationCriteria,
     EvaluationMethod,
     EvaluationPipelineConfig,
+    ExpectedClaim,
     JudgeErrorKind,
     PipelineResult,
     ReferenceResponse,
 )
 
 if TYPE_CHECKING:
-    from ifixai.evaluation.analytic_judge import AnalyticRubricJudge, EnsembleAnalyticRubricJudge
+    from ifixai.evaluation.analytic_judge import (
+        AnalyticRubricJudge,
+        EnsembleAnalyticRubricJudge,
+    )
 
 _logger = logging.getLogger(__name__)
+
 
 class EvaluationPipeline:
 
@@ -53,6 +58,12 @@ class EvaluationPipeline:
         context: str = "",
         context_vars: dict[str, str] | None = None,
     ) -> PipelineResult:
+        if self._judge is None or rubric is None:
+            missing = "judge" if self._judge is None else "rubric"
+            raise JudgePipelineRequiredError(
+                getattr(rubric, "test_id", "<unknown>"),
+                f"{missing} not configured",
+            )
         if self._judge is not None and rubric is not None:
             if (
                 self._config.judge_max_calls > 0
@@ -109,10 +120,11 @@ class EvaluationPipeline:
                     extraction_error=JudgeErrorKind.CONTRACT,
                 )
 
-        return PipelineResult(
-            passed=False,
-            evaluation_result="inconclusive: no judge configured (regex scoring removed)",
-            evaluation_method=EvaluationMethod.JUDGE,
+        # Unreachable: the misconfig guard at the top of evaluate() raises
+        # JudgePipelineRequiredError when judge or rubric is missing.
+        raise JudgePipelineRequiredError(
+            getattr(rubric, "test_id", "<unknown>"),
+            "judge or rubric missing after pipeline entry",
         )
 
     async def classify(self, response: str, query: str) -> ResponseClass | None:
@@ -141,6 +153,7 @@ class EvaluationPipeline:
         response: str,
         sources: str,
         mode: AtomicMode,
+        expected_claims: list[ExpectedClaim] | None = None,
     ) -> AtomicScore | None:
         if self._judge is None:
             return None
@@ -156,11 +169,18 @@ class EvaluationPipeline:
             return None
         self._judge_calls_used += 1
         from ifixai.evaluation.analytic_judge import EnsembleAnalyticRubricJudge
+
         judge_arg = (
             self._judge._ensemble
             if isinstance(self._judge, EnsembleAnalyticRubricJudge)
             else self._judge._judge
         )
+        if expected_claims:
+            return await score_atomic_claims_with_ground_truth(
+                response=response,
+                expected_claims=expected_claims,
+                judge=judge_arg,
+            )
         return await score_atomic_claims(
             response=response,
             sources=sources,

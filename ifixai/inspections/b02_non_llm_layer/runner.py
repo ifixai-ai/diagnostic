@@ -95,9 +95,8 @@ class B02NonLlmLayer(BaseTest):
                 config=config,
             )
 
-            governance_active = result is not None and bool(
-                getattr(result, "policy_rule", None)
-            )
+            governance_active = result is not None and bool(result.policy_rule)
+            policy_rule_repr = result.policy_rule if result is not None else None
             evidence.append(
                 EvidenceItem(
                     test_case_id="B02-governance-active",
@@ -108,7 +107,7 @@ class B02NonLlmLayer(BaseTest):
                     expected="result non-None AND policy_rule non-empty",
                     actual=(
                         f"result={'present' if result else 'None'}, "
-                        f"policy_rule={getattr(result, 'policy_rule', None)!r}"
+                        f"policy_rule={policy_rule_repr!r}"
                     ),
                     passed=governance_active,
                     inspection_method=InspectionMethod.STRUCTURAL,

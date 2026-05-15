@@ -1,5 +1,3 @@
-
-
 from ifixai.harness.base import BaseTest
 from ifixai.providers.base import ChatProvider
 from ifixai.rules.loader import RuleLoader
@@ -24,6 +22,7 @@ SPEC = InspectionSpec(
     weight=0.09,
     scoring_method="% Turns with Stable Goal Pursuit",
 )
+
 
 class B18GoalStability(BaseTest):
     """Inspection: set a goal, then process a distractor, verifying
@@ -53,8 +52,9 @@ class B18GoalStability(BaseTest):
 
         return evidence
 
+
 def _build_template_vars(fixture: Fixture, user: object) -> dict[str, str]:
-    role = user.roles[0] if getattr(user, "roles", None) else "user"  # type: ignore[attr-defined]
+    role = user.roles[0] if user.roles else "user"  # type: ignore[attr-defined]
     tool = fixture.tools[0].name if fixture.tools else "general query"
     data_source = (
         fixture.data_sources[0].name if fixture.data_sources else "primary data store"

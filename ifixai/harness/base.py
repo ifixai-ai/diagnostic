@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 import logging
 
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
+from ifixai.providers.base import ProviderEmptyContentError
 from ifixai.providers.base import ChatProvider
 from ifixai.utils.template_renderer import render
 from ifixai.rules.loader import load_inspection_definition
@@ -20,8 +22,6 @@ from ifixai.core.types import (
     InspectionSpec,
     ChatMessage,
     ConversationPlan,
-    EvaluationCriteria,
-    EvaluationMethod,
     EvaluationMode,
     EvaluationPipelineConfig,
     EvidenceItem,
@@ -29,9 +29,28 @@ from ifixai.core.types import (
     ProviderCapabilities,
     ProviderConfig,
 )
-from ifixai.harness.schemas import EvaluationOutcome
 
 _logger = logging.getLogger(__name__)
+
+
+def build_system_message(system_prompt: str | None, run_nonce: str | None) -> str | None:
+    """Return the system content to send to the SUT, with run_nonce appended.
+
+    The run nonce defeats deterministic prompt caching by a hostile provider:
+    even with temperature=0 and a fixed seed, the system prompt bytes differ
+    across runs because the nonce is random per run. The marker is placed on
+    its own line at the end so it does not interfere with prompt semantics.
+    Returns None when neither a system prompt nor a nonce is configured.
+    """
+    if not system_prompt and not run_nonce:
+        return None
+    if not run_nonce:
+        return system_prompt
+    marker = f"[run_id: {run_nonce}]"
+    if not system_prompt:
+        return marker
+    return f"{system_prompt}\n{marker}"
+
 
 class BaseTest(ABC):
 
@@ -106,6 +125,30 @@ class BaseTest(ABC):
                 evaluation_mode=eval_mode,
                 insufficient_evidence=insufficient,
             )
+        except ProviderEmptyContentError as exc:
+            # Empty SUT response is unscorable, not misconfigured. The run
+            # completed; the model produced no scoreable output. Map to
+            # INCONCLUSIVE so it routes through the existing inconclusive
+            # CLI/scorecard plumbing (excluded from denominator, surfaced
+            # in the inconclusive summary) instead of the ERROR banner.
+            duration = time.monotonic() - start
+            return TestResult(
+                test_id=self.spec.test_id,
+                spec=self.spec,
+                name=self.spec.name,
+                category=self.spec.category,
+                score=0.0,
+                threshold=self.spec.threshold,
+                passed=False,
+                passing=False,
+                status=TestStatus.INCONCLUSIVE,
+                evidence=[],
+                duration_seconds=duration,
+                duration_ms=duration * 1000,
+                error=str(exc),
+                error_message=str(exc),
+                insufficient_evidence=True,
+            )
         except Exception as exc:
             duration = time.monotonic() - start
             return TestResult(
@@ -153,9 +196,15 @@ class BaseTest(ABC):
         fixture = self._fixture
         if fixture is None:
             return {}
-        data_source_names = [s.name for s in fixture.data_sources] if fixture.data_sources else []
-        data_source_primary = data_source_names[0] if data_source_names else "primary data store"
-        data_sources_joined = ", ".join(data_source_names) if data_source_names else "(none configured)"
+        data_source_names = (
+            [s.name for s in fixture.data_sources] if fixture.data_sources else []
+        )
+        data_source_primary = (
+            data_source_names[0] if data_source_names else "primary data store"
+        )
+        data_sources_joined = (
+            ", ".join(data_source_names) if data_source_names else "(none configured)"
+        )
         tool_name = fixture.tools[0].name if fixture.tools else "general query"
         role_name = (
             fixture.users[0].roles[0]
@@ -164,20 +213,19 @@ class BaseTest(ABC):
         )
         domain = fixture.metadata.domain if fixture.metadata else ""
         policy_summary = "default governance policy"
-        policy = getattr(fixture, "policies", None)
-        if policy is not None:
-            parts: list[str] = []
-            audit = getattr(policy, "audit_logging", None)
-            if audit:
-                parts.append(f"audit_logging={audit}")
-            citation = getattr(policy, "citation_required", None)
-            if citation is not None:
-                parts.append(f"citation_required={citation}")
-            threshold = getattr(policy, "confidence_threshold", None)
-            if threshold is not None:
-                parts.append(f"confidence_threshold={threshold}")
-            if parts:
-                policy_summary = "; ".join(parts)
+        policy_dict = fixture.policies.model_dump(exclude_unset=True)
+        parts: list[str] = []
+        audit = policy_dict.get("audit_logging")
+        if audit:
+            parts.append(f"audit_logging={audit}")
+        if "citation_required" in policy_dict:
+            parts.append(f"citation_required={policy_dict['citation_required']}")
+        if "confidence_threshold" in policy_dict:
+            parts.append(
+                f"confidence_threshold={policy_dict['confidence_threshold']}"
+            )
+        if parts:
+            policy_summary = "; ".join(parts)
         return {
             "data_source": data_source_primary,
             "data_sources": data_sources_joined,
@@ -204,10 +252,12 @@ class BaseTest(ABC):
         if pipeline is None:
             pipeline = self._pipeline
 
-        if config.system_prompt:
-            history.append(ChatMessage(role="system", content=config.system_prompt))
+        system_content = build_system_message(config.system_prompt, config.run_nonce)
+        if system_content is not None:
+            history.append(ChatMessage(role="system", content=system_content))
 
         merged_vars = {**self._fixture_defaults(), **template_vars}
+        case_label = template_vars.get("case_id") or template_vars.get("role", "default")
         for step in plan.steps:
             prompt = render(step.prompt_template, merged_vars)
             history.append(ChatMessage(role="user", content=prompt))
@@ -218,14 +268,17 @@ class BaseTest(ABC):
 
                 if pipeline is not None:
                     result = await self._evaluate_with_pipeline(
-                        pipeline, response, step, plan.test_id,
+                        pipeline,
+                        response,
+                        step,
+                        plan.test_id,
                         prompt=prompt,
                         extra_context_vars=extra_context_vars,
                         rubric_override=rubric_override,
                     )
                     evidence.append(
                         EvidenceItem(
-                            test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
+                            test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
                             description=f"Step {step.step_id}: {step.evaluation.expected_outcome}",
                             prompt_sent=prompt,
                             expected=step.evaluation.expected_outcome,
@@ -247,30 +300,20 @@ class BaseTest(ABC):
                         )
                     )
                 else:
-                    evidence.append(
-                        EvidenceItem(
-                            test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
-                            description=f"Step {step.step_id}: {step.evaluation.expected_outcome}",
-                            prompt_sent=prompt,
-                            expected=step.evaluation.expected_outcome,
-                            expected_behavior=step.evaluation.expected_outcome,
-                            actual=response[:500],
-                            actual_response=response,
-                            evaluation_result="inconclusive: judge pipeline required",
-                            passed=False,
-                            step_number=step.step_id,
-                            details={
-                                "template_vars": template_vars,
-                                "step_id": step.step_id,
-                            },
-                            evaluation_method=EvaluationMethod.JUDGE,
-                            judge_verdict=None,
-                        )
+                    raise JudgePipelineRequiredError(
+                        plan.test_id,
+                        "execute_conversation requires an analytic judge pipeline",
                     )
+            except (JudgePipelineRequiredError, ProviderEmptyContentError):
+                # Both propagate to BaseTest.execute: JudgePipelineRequiredError
+                # → ERROR (misconfig), ProviderEmptyContentError → INCONCLUSIVE
+                # (unscorable). Do not swallow into a per-step "error" evidence
+                # item or the outer status mapping is lost.
+                raise
             except Exception as exc:
                 evidence.append(
                     EvidenceItem(
-                        test_case_id=f"{plan.test_id}_step{step.step_id}_{template_vars.get('role', 'default')}",
+                        test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
                         description=f"Step {step.step_id}: error",
                         prompt_sent=prompt,
                         expected=step.evaluation.expected_outcome,
@@ -319,16 +362,6 @@ class BaseTest(ABC):
             context_vars=context_vars,
         )
 
-def evaluate_response(
-    response: str,
-    criteria: EvaluationCriteria,
-) -> EvaluationOutcome:
-    del response, criteria
-    return EvaluationOutcome(
-        passed=False,
-        reason="inconclusive: regex scoring removed (use EvaluationPipeline)",
-    )
-
 
 async def send_single_turn(
     provider: ChatProvider,
@@ -336,7 +369,8 @@ async def send_single_turn(
     prompt: str,
 ) -> str:
     history: list[ChatMessage] = []
-    if config.system_prompt:
-        history.append(ChatMessage(role="system", content=config.system_prompt))
+    system_content = build_system_message(config.system_prompt, config.run_nonce)
+    if system_content is not None:
+        history.append(ChatMessage(role="system", content=system_content))
     history.append(ChatMessage(role="user", content=prompt))
     return await provider.send_message(history, config)

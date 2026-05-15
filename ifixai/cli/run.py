@@ -7,7 +7,9 @@ progress output. Supports both non-interactive (flags) and interactive
 
 import asyncio
 import os
+import secrets
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -22,6 +24,7 @@ from ifixai.cli.orchestrator import (
     _eval_mode_declaration,
     _lookup_env_api_key,
     _print_category_summary,
+    _print_error_summary,
     _print_inconclusive_summary,
     _print_insufficient_evidence_summary,
     _resolve_judge_label,
@@ -41,7 +44,12 @@ from ifixai.core.discovery import (
     discover_system,
     display_discovery_summary,
 )
-from ifixai.evaluation.manifest import build_manifest, write_manifest
+from ifixai.evaluation.manifest import (
+    build_manifest,
+    generate_run_nonce,
+    is_valid_run_nonce,
+    write_manifest,
+)
 from ifixai.inspections.holdout_ids import generate_holdout_ids
 from ifixai.evaluation.normalizer import NORMALIZER_VERSION
 from ifixai.evaluation.types import ModelDescriptor
@@ -92,6 +100,7 @@ _GOVERNANCE_SOURCE_WARNINGS: dict[str, str] = {
 def _governance_source_warning(source: str) -> str | None:
     return _GOVERNANCE_SOURCE_WARNINGS.get(source)
 
+
 PROVIDER_CHOICES = [
     "mock",
     "openai",
@@ -106,6 +115,7 @@ PROVIDER_CHOICES = [
 ]
 
 FORMAT_CHOICES = ["json", "markdown", "both"]
+
 
 def _resolve_concurrency(flag_value: int | None, no_parallel: bool) -> int:
     """Resolve effective concurrency from flag, env var, and --no-parallel.
@@ -146,6 +156,24 @@ def _resolve_concurrency(flag_value: int | None, no_parallel: bool) -> int:
 
     return DEFAULT_CONCURRENCY
 
+
+def _format_elapsed(seconds: float) -> str:
+    """Human-readable wall-clock duration: ``1h 23m 4s`` / ``2m 5s`` / ``18s``.
+
+    Sub-second runs show milliseconds (``842ms``) so CI snapshots are stable.
+    """
+    if seconds < 1.0:
+        return f"{int(seconds * 1000)}ms"
+    total = int(round(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
 def _print_concurrency_banner(resolved: int) -> None:
     if resolved == 1:
         click.echo(
@@ -162,6 +190,7 @@ def _print_concurrency_banner(resolved: int) -> None:
             f"Note: concurrency={resolved} is above default 5. Dial down if you see 429s.",
             err=True,
         )
+
 
 @click.command()
 @click.option(
@@ -385,9 +414,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B12_SEED",
     show_default=False,
-    help="Seed for B12 prompt-injection corpus sampler. Default: 20260422 "
-    "(deterministic across runs). Override for adversarial campaigns that "
-    "rotate through different payload subsets.",
+    help="Seed for B12 prompt-injection corpus sampler. Default: random per run "
+    "(different payload subset each time). Pin with this flag for exact replay "
+    "of a prior run.",
 )
 @click.option(
     "--b14-seed",
@@ -395,9 +424,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B14_SEED",
     show_default=False,
-    help="Seed for B14 covert side-task corpus mutator. Default: 20260422 "
-    "(deterministic across runs). Override to rotate through different "
-    "variant expansions of the committed seed corpus.",
+    help="Seed for B14 covert side-task corpus mutator. Default: random per run "
+    "(different variant expansion each time). Pin with this flag for exact "
+    "replay of a prior run.",
 )
 @click.option(
     "--b28-seed",
@@ -405,9 +434,9 @@ def _print_concurrency_banner(resolved: int) -> None:
     default=None,
     envvar="IFIXAI_B28_SEED",
     show_default=False,
-    help="Seed for B28 RAG context integrity corpus mutator. Default: "
-    "20260422 (deterministic across runs). Override to rotate through "
-    "different variant expansions of the committed seed corpus.",
+    help="Seed for B28 RAG context integrity corpus mutator. Default: random "
+    "per run (different variant expansion each time). Pin with this flag for "
+    "exact replay of a prior run.",
 )
 @click.option(
     "--b30-seed",
@@ -416,8 +445,28 @@ def _print_concurrency_banner(resolved: int) -> None:
     envvar="IFIXAI_B30_SEED",
     show_default=False,
     help="Seed for B30 malicious-deployer-rules corpus mutator. Default: "
-    "20260422 (deterministic across runs). Override to rotate through "
-    "different variant expansions of the committed seed corpus.",
+    "random per run (different variant expansion each time). Pin with this "
+    "flag for exact replay of a prior run.",
+)
+@click.option(
+    "--b29-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B29_SEED",
+    show_default=False,
+    help="Seed for B29 prompt-sensitivity phrasing sampler. Default: random "
+    "per run (different phrasing subset each time). Pin with this flag for "
+    "exact replay of a prior run.",
+)
+@click.option(
+    "--b32-seed",
+    type=int,
+    default=None,
+    envvar="IFIXAI_B32_SEED",
+    show_default=False,
+    help="Seed for B32 off-topic prompt sampler. Default: random per run "
+    "(different off-topic subset each time). Pin with this flag for exact "
+    "replay of a prior run.",
 )
 @click.option(
     "--holdout-seed",
@@ -451,6 +500,18 @@ def _print_concurrency_banner(resolved: int) -> None:
     help="Sampling seed sent to the system-under-test. Providers that do not "
     "accept a seed will record seed_supported_by_provider=false in the "
     "manifest; the seed is still recorded.",
+)
+@click.option(
+    "--run-nonce",
+    "run_nonce",
+    type=str,
+    default=None,
+    envvar="IFIXAI_RUN_NONCE",
+    show_default=False,
+    help="Replay-protection nonce (16 lowercase hex chars). When omitted, a "
+    "fresh nonce is generated per run; the value is recorded in the manifest "
+    "and injected into the SUT system prompt so identical prompts cannot "
+    "match a cached canned reply. Pass a recorded value for exact replay.",
 )
 @click.option(
     "--quiet",
@@ -491,13 +552,37 @@ def run(
     b14_seed: int | None,
     b28_seed: int | None,
     b30_seed: int | None,
+    b29_seed: int | None,
+    b32_seed: int | None,
     holdout_seed: int | None,
     sut_temperature: float,
     sut_seed: int | None,
+    run_nonce: str | None,
     grounding: str,
     quiet: bool,
 ) -> None:
     """Run ifixai against a target AI assistant."""
+    run_start_monotonic = time.monotonic()
+    if run_nonce is not None and not is_valid_run_nonce(run_nonce):
+        raise click.BadParameter(
+            f"--run-nonce must be 16 lowercase hex chars; got {run_nonce!r}",
+            param_hint="--run-nonce",
+        )
+    effective_run_nonce = run_nonce if run_nonce is not None else generate_run_nonce()
+
+    effective_b12_seed = b12_seed if b12_seed is not None else secrets.randbelow(2**31)
+    effective_b14_seed = b14_seed if b14_seed is not None else secrets.randbelow(2**31)
+    effective_b28_seed = b28_seed if b28_seed is not None else secrets.randbelow(2**31)
+    effective_b30_seed = b30_seed if b30_seed is not None else secrets.randbelow(2**31)
+    effective_b29_seed = b29_seed if b29_seed is not None else secrets.randbelow(2**31)
+    effective_b32_seed = b32_seed if b32_seed is not None else secrets.randbelow(2**31)
+    b12_seed_pinned = b12_seed is not None
+    b14_seed_pinned = b14_seed is not None
+    b28_seed_pinned = b28_seed is not None
+    b30_seed_pinned = b30_seed is not None
+    b29_seed_pinned = b29_seed is not None
+    b32_seed_pinned = b32_seed is not None
+
     print_startup_banner(IFIXAI_VERSION, quiet=quiet)
     resolved_concurrency = _resolve_concurrency(concurrency, no_parallel)
     _print_concurrency_banner(resolved_concurrency)
@@ -655,6 +740,17 @@ def run(
     click.echo(click.style("Testing connection...", bold=True))
 
     resolved_provider = resolve_provider(provider)
+    if not getattr(resolved_provider, "replay_protected", True):
+        click.echo(
+            click.style(
+                f"Warning: provider {type(resolved_provider).__name__} self-reports "
+                "replay_protected=False. The run nonce will still be injected into "
+                "the system prompt, but the provider has signalled it may serve "
+                "cached canned replies. Treat scores from this run as advisory.",
+                fg="yellow",
+            ),
+            err=True,
+        )
     governance_source: str = "runtime"
     if governance_path is not None:
         if (provider or "").lower() == "mock":
@@ -668,9 +764,7 @@ def run(
             )
             sys.exit(1)
         governance_fixture = GovernanceFixture.load(governance_path)
-        resolved_provider = wrap_with_governance(
-            resolved_provider, governance_fixture
-        )
+        resolved_provider = wrap_with_governance(resolved_provider, governance_fixture)
         governance_source = "wrap"
         click.echo(
             click.style(
@@ -912,10 +1006,18 @@ def run(
         pipeline_config = EvaluationPipelineConfig(
             mode=internal_mode,
             judge_max_calls=judge_budget if judge_budget > 0 else 0,
-            b12_seed=b12_seed if b12_seed is not None else 20260422,
-            b14_seed=b14_seed if b14_seed is not None else 20260422,
-            b28_seed=b28_seed if b28_seed is not None else 20260422,
-            b30_seed=b30_seed if b30_seed is not None else 20260422,
+            b12_seed=effective_b12_seed,
+            b14_seed=effective_b14_seed,
+            b28_seed=effective_b28_seed,
+            b30_seed=effective_b30_seed,
+            b12_seed_pinned=b12_seed_pinned,
+            b14_seed_pinned=b14_seed_pinned,
+            b28_seed_pinned=b28_seed_pinned,
+            b30_seed_pinned=b30_seed_pinned,
+            b29_seed=effective_b29_seed,
+            b32_seed=effective_b32_seed,
+            b29_seed_pinned=b29_seed_pinned,
+            b32_seed_pinned=b32_seed_pinned,
         )
 
     judge_config = _build_judge_config(
@@ -943,9 +1045,13 @@ def run(
     # (explicit or synth via `synthesize: true`) is composed onto the
     # provider here. Vanilla path leaves `governance_source == "runtime"`
     # so insufficient_evidence on governance inspections stays honest.
-    if governance_source == "runtime" and fixture_obj_for_grounding.governance is not None:
+    if (
+        governance_source == "runtime"
+        and fixture_obj_for_grounding.governance is not None
+    ):
         resolved_provider = wrap_with_governance(
-            resolved_provider, fixture_obj_for_grounding.governance,
+            resolved_provider,
+            fixture_obj_for_grounding.governance,
         )
         embedded_source = fixture_obj_for_grounding.governance_source or "explicit"
         governance_source = (
@@ -960,14 +1066,18 @@ def run(
         )
 
     effective_system_prompt = compose_system_prompt(
-        grounding_mode, fixture_obj_for_grounding, system_prompt,
+        grounding_mode,
+        fixture_obj_for_grounding,
+        system_prompt,
     )
     _GROUNDING_LABEL = {
-        GroundingMode.SUT:     "SUT-managed (the model uses its own system prompt; pass --grounding fixture to inject one)",
+        GroundingMode.SUT: "SUT-managed (the model uses its own system prompt; pass --grounding fixture to inject one)",
         GroundingMode.FIXTURE: "fixture-managed (fixture-derived prompt injected)",
-        GroundingMode.NONE:    "none (no system prompt injected)",
+        GroundingMode.NONE: "none (no system prompt injected)",
     }
-    click.echo(f"Grounding: {_GROUNDING_LABEL.get(grounding_mode, grounding_mode.value)}")
+    click.echo(
+        f"Grounding: {_GROUNDING_LABEL.get(grounding_mode, grounding_mode.value)}"
+    )
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -989,6 +1099,7 @@ def run(
             governor=concurrency_governor,
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
+            run_nonce=effective_run_nonce,
             self_judged=(eval_mode == "self"),
         )
     )
@@ -999,6 +1110,24 @@ def run(
     governance_warning = _governance_source_warning(governance_source)
     if governance_warning is not None and governance_warning not in result.warnings:
         result.warnings.append(governance_warning)
+
+    _pinned = [
+        label
+        for label, pinned in (
+            ("B12", b12_seed_pinned),
+            ("B14", b14_seed_pinned),
+            ("B28", b28_seed_pinned),
+            ("B30", b30_seed_pinned),
+            ("B29", b29_seed_pinned),
+            ("B32", b32_seed_pinned),
+        )
+        if pinned
+    ]
+    if _pinned:
+        result.warnings.append(
+            f"Pinned seeds ({', '.join(_pinned)}): memorization resistance reduced"
+            " — score reproducibility increased."
+        )
 
     _print_category_summary(result)
 
@@ -1011,9 +1140,7 @@ def run(
         if 0 < scored_categories < total_categories
         else ""
     )
-    score_label = (
-        "Partial Score:" if coverage_suffix else "Overall Score:"
-    )
+    score_label = "Partial Score:" if coverage_suffix else "Overall Score:"
     if result.self_judged:
         redacted = click.style("SELF-JUDGED (redacted)", fg="yellow")
         click.echo(f"  {score_label}    {redacted}{coverage_suffix}")
@@ -1032,8 +1159,13 @@ def run(
         click.echo(f"  Passed:           {verdict}")
     click.echo()
 
+    _print_error_summary(result)
     _print_inconclusive_summary(result)
     _print_insufficient_evidence_summary(result)
+    click.echo()
+
+    elapsed = _format_elapsed(time.monotonic() - run_start_monotonic)
+    click.echo(click.style(f"Total execution time: {elapsed}", fg="cyan"))
     click.echo()
 
     save_reports(result, output, report_format)
@@ -1079,22 +1211,30 @@ def run(
         fixture_digest=compute_fixture_digest(resolved_fixture_path),
         governance_fixture_digest=governance_fixture_digest_value,
         governance_source=governance_source,
-        mode_filter=(
-            [test] if test else (["strategic"] if strategic else ["all"])
-        ),
+        mode_filter=([test] if test else (["strategic"] if strategic else ["all"])),
         judge_identity=judge_identity_descriptor,
-        b12_seed=b12_seed if b12_seed is not None else 20260422,
-        b14_seed=b14_seed if b14_seed is not None else 20260422,
-        b28_seed=b28_seed if b28_seed is not None else 20260422,
-        b30_seed=b30_seed if b30_seed is not None else 20260422,
+        b12_seed=effective_b12_seed,
+        b14_seed=effective_b14_seed,
+        b28_seed=effective_b28_seed,
+        b30_seed=effective_b30_seed,
+        b12_seed_pinned=b12_seed_pinned,
+        b14_seed_pinned=b14_seed_pinned,
+        b28_seed_pinned=b28_seed_pinned,
+        b30_seed_pinned=b30_seed_pinned,
+        b29_seed=effective_b29_seed,
+        b32_seed=effective_b32_seed,
+        b29_seed_pinned=b29_seed_pinned,
+        b32_seed_pinned=b32_seed_pinned,
         holdout_seed=holdout_seed,
         holdout_ids=holdout.to_dict(),
+        run_nonce=effective_run_nonce,
     )
     manifest_path = write_manifest(manifest, Path(reliability_out))
     click.echo()
     click.echo(click.style("Run manifest", bold=True))
     click.echo(f"  Mode:     {manifest.mode.value}")
     click.echo(f"  Run ID:   {manifest.run_id}")
+    click.echo(f"  Run nonce: {manifest.run_nonce}")
     click.echo(f"  Manifest: {manifest_path}")
 
     if result.overall_score is None:
@@ -1106,7 +1246,9 @@ def run(
         )
         sys.exit(2)
     if result.overall_score < min_score:
-        scored_categories = sum(1 for cs in result.category_scores if cs.score is not None)
+        scored_categories = sum(
+            1 for cs in result.category_scores if cs.score is not None
+        )
         total_categories = len(result.category_scores)
         coverage_suffix = (
             f" ({scored_categories}/{total_categories} categories scored)"
@@ -1122,6 +1264,7 @@ def run(
             )
         )
         sys.exit(2)
+
 
 def gather_interactive_config() -> InteractiveConfig:
     """Run the interactive guided mode to collect provider configuration."""
@@ -1143,4 +1286,6 @@ def gather_interactive_config() -> InteractiveConfig:
     if click.confirm("Specify model?", default=False):
         model = click.prompt("Model identifier")
 
-    return InteractiveConfig(provider=provider, api_key=api_key, endpoint=endpoint, model=model)
+    return InteractiveConfig(
+        provider=provider, api_key=api_key, endpoint=endpoint, model=model
+    )

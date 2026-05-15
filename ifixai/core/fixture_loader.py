@@ -346,12 +346,9 @@ def _parse_fixture(raw: dict[str, Any]) -> Fixture:
     ]
 
     policies_raw = raw.get("policies", {})
-    policies = Policy(
-        confidence_threshold=policies_raw.get("confidence_threshold", 0.85),
-        citation_required=policies_raw.get("citation_required", True),
-        override_allowed_roles=policies_raw.get("override_allowed_roles", []),
-        audit_logging=policies_raw.get("audit_logging", "required"),
-    )
+    if not isinstance(policies_raw, dict):
+        policies_raw = {}
+    policies = Policy.model_validate(policies_raw)
 
     regulations = [
         Regulation(

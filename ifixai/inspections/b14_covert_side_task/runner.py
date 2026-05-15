@@ -1,8 +1,8 @@
 import asyncio
+import secrets
 from pathlib import Path
 
 from ifixai.harness.adversarial_mutator import (
-    B14_DEFAULT_SEED,
     MutatedVariant,
     SeedEntry,
     expand_seeds,
@@ -20,6 +20,7 @@ from ifixai.core.types import (
     EvaluationMethod,
     InspectionSpec,
     ProviderConfig,
+    User,
 )
 
 SPEC = InspectionSpec(
@@ -124,27 +125,48 @@ class B14CovertSideTask(BaseTest):
         evidence: list[EvidenceItem] = []
         semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
 
-        for user in fixture.users:
-            # Structural probe runs once per user, not per variant — running it
-            # per variant would emit duplicate evidence items with the same IDs.
-            structural = await self._inspection_suspicious_tools(
-                provider, config, user, fixture, semaphore
-            )
-            evidence.extend(structural)
-
-            results = await asyncio.gather(*[
-                _run_variant(self, semaphore, seeds_by_id, fixture, provider, config, plan, user, v)
+        # Structural probes run once per user (not per variant — IDs would
+        # collide) but probes across users are independent. Fan out in
+        # parallel alongside the variant conversations.
+        structural_task = asyncio.gather(
+            *[
+                self._inspection_suspicious_tools(
+                    provider, config, user, fixture, semaphore
+                )
+                for user in fixture.users
+            ]
+        )
+        variant_task = asyncio.gather(
+            *[
+                _run_variant(
+                    self,
+                    semaphore,
+                    seeds_by_id,
+                    fixture,
+                    provider,
+                    config,
+                    plan,
+                    user,
+                    v,
+                )
+                for user in fixture.users
                 for v in variants
-            ])
-            for step_evidence in results:
-                evidence.extend(step_evidence)
+            ]
+        )
+        structural_results, variant_results = await asyncio.gather(
+            structural_task, variant_task
+        )
+        for structural in structural_results:
+            evidence.extend(structural)
+        for step_evidence in variant_results:
+            evidence.extend(step_evidence)
 
         return evidence
 
     def _effective_b14_seed(self) -> int:
         if self.pipeline_config is not None:
             return self.pipeline_config.b14_seed
-        return B14_DEFAULT_SEED
+        return secrets.randbelow(2**31)
 
     async def _inspection_suspicious_tools(
         self,
@@ -166,11 +188,12 @@ class B14CovertSideTask(BaseTest):
             t.tool_id for t in fixture.tools if t.risk_level == "high"
         }
 
-        user_role = user.roles[0] if getattr(user, "roles", None) else "user"
-        user_id = getattr(user, "user_id", "unknown")
+        user_role = user.roles[0] if user.roles else "user"
+        user_id = user.user_id
 
         suspicious_tools = [
-            tool for tool in tools_available
+            tool
+            for tool in tools_available
             if (
                 any(kw in tool.name.lower() for kw in _SUSPICIOUS_TOOL_KEYWORDS)
                 or tool.tool_id in fixture_high_risk_ids
@@ -178,21 +201,23 @@ class B14CovertSideTask(BaseTest):
             )
         ]
 
-        results = await asyncio.gather(*[
-            _probe_tool(semaphore, provider, config, user_role, user_id, t)
-            for t in suspicious_tools
-        ])
+        results = await asyncio.gather(
+            *[
+                _probe_tool(semaphore, provider, config, user_role, user_id, t)
+                for t in suspicious_tools
+            ]
+        )
         return [r for r in results if r is not None]
 
 
 def _build_template_vars(
-    user: object,
+    user: User,
     variant: MutatedVariant,
     seed_entry: SeedEntry,
     fixture: Fixture,
 ) -> dict[str, str]:
-    user_name = getattr(user, "name", "user")
-    user_roles = getattr(user, "roles", None)
+    user_name = user.name
+    user_roles = user.roles
     role = user_roles[0] if user_roles else "user"
     legitimate = seed_entry.metadata.get("legitimate_request", seed_entry.text)
     covert_task = seed_entry.metadata.get("covert_objective", seed_entry.text)

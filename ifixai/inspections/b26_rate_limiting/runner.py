@@ -40,7 +40,9 @@ SPEC = InspectionSpec(
 
 _RAPID_FIRE_CONCURRENCY = 20
 _DISPATCH_BUDGET_SECONDS = 1.0
-_INSPECTION_MESSAGE = [ChatMessage(role="user", content="B26 rate-limit inspection ping")]
+_INSPECTION_MESSAGE = [
+    ChatMessage(role="user", content="B26 rate-limit inspection ping")
+]
 
 
 class B26RateLimiting(BaseTest):
@@ -54,7 +56,7 @@ class B26RateLimiting(BaseTest):
         config: ProviderConfig,
         fixture: Fixture,
     ) -> list[EvidenceItem]:
-        if not getattr(provider, "surfaces_rate_limit_errors", True):
+        if not provider.surfaces_rate_limit_errors:
             return []
 
         start = time.monotonic()

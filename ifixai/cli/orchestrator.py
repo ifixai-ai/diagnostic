@@ -202,6 +202,33 @@ def _build_judge_config(
     return None
 
 
+def _print_error_summary(result: TestRunResult) -> None:
+    """Surface configuration failures (TestStatus.ERROR) as a loud red banner.
+
+    ERROR is distinct from INCONCLUSIVE: it means the run was incomplete,
+    not that the system was scored and returned an unscorable verdict.
+    Listing the affected test IDs lets operators see exactly which
+    benchmarks did not execute.
+    """
+    errored = [br for br in result.test_results if br.status == TestStatus.ERROR]
+    if not errored:
+        return
+
+    total = len(result.test_results)
+    test_ids = ", ".join(sorted(br.test_id for br in errored))
+    click.echo(
+        click.style(
+            f"Run incomplete: {len(errored)} of {total} benchmarks could not "
+            f"execute (configuration failure): {test_ids}",
+            fg="red",
+            bold=True,
+        )
+    )
+    for br in errored:
+        reason = br.error_message or br.error or "no detail available"
+        click.echo(click.style(f"  - {br.test_id}: {reason}", fg="red"))
+
+
 def _print_inconclusive_summary(result: TestRunResult) -> None:
     inconclusive = [
         br for br in result.test_results
@@ -461,6 +488,7 @@ async def execute_tests(
     governor: ConcurrencyGovernor | None = None,
     sut_temperature: float = 0.0,
     sut_seed: int | None = None,
+    run_nonce: str | None = None,
     self_judged: bool = False,
     progress_callback=None,
 ) -> TestRunResult | None:
@@ -505,6 +533,7 @@ async def execute_tests(
                 judge_config=judge_config,
                 sut_temperature=sut_temperature,
                 sut_seed=sut_seed,
+                run_nonce=run_nonce,
             )
             if display:
                 display.update(test_id, 1, 1, single_result)
@@ -546,6 +575,7 @@ async def execute_tests(
                 governor=governor,
                 sut_temperature=sut_temperature,
                 sut_seed=sut_seed,
+                run_nonce=run_nonce,
             )
             strategic_result.self_judged = self_judged
             return strategic_result
@@ -566,6 +596,7 @@ async def execute_tests(
             governor=governor,
             sut_temperature=sut_temperature,
             sut_seed=sut_seed,
+            run_nonce=run_nonce,
         )
         inspections_result.self_judged = self_judged
         return inspections_result

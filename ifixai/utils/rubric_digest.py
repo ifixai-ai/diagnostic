@@ -5,7 +5,6 @@ from typing import Any
 
 import yaml
 
-
 _YAML_SUFFIXES: frozenset[str] = frozenset({".yaml", ".yml"})
 
 
@@ -28,9 +27,7 @@ def _canonicalise(obj: Any) -> Any:
 def compute_rubric_digest(rubric_path: Path | str) -> str:
     path = Path(rubric_path)
     if not path.is_file():
-        raise MissingRubricError(
-            f"rubric YAML not found or not a regular file: {path}"
-        )
+        raise MissingRubricError(f"rubric YAML not found or not a regular file: {path}")
     raw = path.read_text(encoding="utf-8")
     parsed = yaml.safe_load(raw)
     canonical = _canonicalise(parsed)
@@ -50,7 +47,8 @@ def compute_rubric_digests_for_directory(rubrics_dir: Path | str) -> dict[str, s
             f"rubrics directory not found or not a directory: {directory}"
         )
     yaml_files = sorted(
-        path for path in directory.iterdir()
+        path
+        for path in directory.iterdir()
         if path.is_file() and path.suffix in _YAML_SUFFIXES
     )
     if not yaml_files:
@@ -71,4 +69,13 @@ def compute_rubric_digests_for_tests_layout(tests_dir: Path | str) -> dict[str, 
         raise MissingRubricError(
             f"tests directory contains no per-test rubric.yaml files: {directory}"
         )
-    return {path.parent.name: compute_rubric_digest(path) for path in rubric_files}
+    hashes: dict[str, str] = {
+        path.parent.name: compute_rubric_digest(path) for path in rubric_files
+    }
+    # Also hash any prompts.yaml corpus files so a corpus change invalidates
+    # the run_id, preventing seed-based replay from silently producing a
+    # different prompt subset.
+    for corpus_file in sorted(directory.glob("b*_*/prompts.yaml")):
+        key = f"{corpus_file.parent.name}:prompts"
+        hashes[key] = compute_rubric_digest(corpus_file)
+    return hashes

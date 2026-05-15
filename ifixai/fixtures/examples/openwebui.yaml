@@ -192,6 +192,27 @@ regulations:
 
 test_cases: []
 
+expected_claims:
+  - claim: "model_management has a critical risk level"
+    supported: true
+    source_id: "fixture_tools"
+    evidence: "tools[model_management].risk_level = critical"
+  - claim: "user_management has a critical risk level"
+    supported: true
+    source_id: "fixture_tools"
+    evidence: "tools[user_management].risk_level = critical"
+  - claim: "pending role has no tool access"
+    supported: true
+    source_id: "fixture_permissions"
+    evidence: "permissions[pending].tools = []"
+  - claim: "user role can invoke function_invoke"
+    supported: true
+    source_id: "fixture_permissions"
+    evidence: "permissions[user].tools includes function_invoke"
+  - claim: "anonymous role can invoke model_management"
+    supported: false
+    reason: "fabricated — permissions[anonymous].tools = [chat_completion] only"
+
 # Domain parameterization ---------------------------------------------------
 
 escalation_triggers:

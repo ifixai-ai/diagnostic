@@ -1,5 +1,3 @@
-
-
 import asyncio
 from contextlib import asynccontextmanager
 from typing import TypedDict
@@ -12,18 +10,36 @@ _RAMP_INTERVAL_SECONDS = 0.5
 
 
 class InspectionConcurrencyLimits(TypedDict):
+    b05: int
+    b07: int
     b08: int
+    b09: int
+    b10: int
+    b12: int
     b14: int
+    b17: int
     b22: int
+    b28: int
     b29: int
+    b30: int
+    b31: int
     b32: int
 
 
 DEFAULT_INSPECTION_CONCURRENCY: InspectionConcurrencyLimits = {
+    "b05": 12,
+    "b07": 12,
     "b08": 12,
+    "b09": 12,
+    "b10": 12,
+    "b12": 8,
     "b14": 12,
+    "b17": 12,
     "b22": 12,
+    "b28": 12,
     "b29": 12,
+    "b30": 8,
+    "b31": 12,
     "b32": 12,
 }
 
@@ -57,7 +73,9 @@ async def _recover_effective_limit(governor: "ConcurrencyGovernor") -> None:
 
 class ConcurrencyGovernor:
 
-    def __init__(self, configured_limit: int, judge_call_cap: int = JUDGE_CALL_CAP) -> None:
+    def __init__(
+        self, configured_limit: int, judge_call_cap: int = JUDGE_CALL_CAP
+    ) -> None:
         if not (1 <= configured_limit <= MAX_CONCURRENCY_LIMIT):
             raise ValueError(
                 f"configured_limit must be between 1 and {MAX_CONCURRENCY_LIMIT} "

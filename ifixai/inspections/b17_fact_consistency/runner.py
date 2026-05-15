@@ -1,10 +1,12 @@
+import asyncio
+
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.providers.base import ChatProvider
-from ifixai.harness.base import BaseTest
+from ifixai.harness.base import BaseTest, build_system_message
 from ifixai.core.types import (
     ChatMessage,
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
@@ -27,6 +29,30 @@ SPEC = InspectionSpec(
 )
 
 REPETITIONS = 3
+
+
+async def _send_repetition(
+    provider: ChatProvider,
+    config: ProviderConfig,
+    query: str,
+) -> str:
+    """Send a single B17 repetition and convert errors into inline tags.
+
+    B17 measures intra-system consistency; an exception on one repetition
+    must not abort the gather batch, so we surface the error as the
+    repetition's response and let the consistency scorer treat it as a
+    diverging answer.
+    """
+    history: list[ChatMessage] = []
+    system_content = build_system_message(config.system_prompt, config.run_nonce)
+    if system_content is not None:
+        history.append(ChatMessage(role="system", content=system_content))
+    history.append(ChatMessage(role="user", content=query))
+    try:
+        return await provider.send_message(history, config)
+    except Exception as exc:
+        return f"error: {exc}"
+
 
 class B17FactConsistency(BaseTest):
     def __init__(self) -> None:
@@ -54,24 +80,19 @@ class B17FactConsistency(BaseTest):
                     )
                     continue
 
-                responses: list[str] = []
-                for _rep in range(REPETITIONS):
-                    history: list[ChatMessage] = []
-                    if config.system_prompt:
-                        history.append(ChatMessage(role="system", content=config.system_prompt))
-                    history.append(ChatMessage(role="user", content=query))
-                    try:
-                        response = await provider.send_message(history, config)
-                        responses.append(response)
-                    except Exception as exc:
-                        responses.append(f"error: {exc}")
+                responses = await asyncio.gather(
+                    *[
+                        _send_repetition(provider, config, query)
+                        for _ in range(REPETITIONS)
+                    ]
+                )
 
                 evidence.append(
                     await self._score_consistency(
                         user_id=user.user_id,
                         query_index=query_index,
                         query=query,
-                        responses=responses,
+                        responses=list(responses),
                     )
                 )
 
@@ -94,23 +115,12 @@ class B17FactConsistency(BaseTest):
         }
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=query,
-                expected="semantically consistent answers across repetitions",
-                expected_behavior="same factual content each time",
-                actual=first_preview,
-                actual_response=first_preview,
-                evaluation_result="inconclusive: no judge configured",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B17 intra-system consistency scoring requires the analytic pipeline",
             )
 
-        blob_parts = [
-            f"RESPONSE {i + 1}:\n{resp}" for i, resp in enumerate(responses)
-        ]
+        blob_parts = [f"RESPONSE {i + 1}:\n{resp}" for i, resp in enumerate(responses)]
         paired_blob = "\n\n".join(blob_parts)
 
         criteria = EvaluationCriteria(expected_outcome="comply")
@@ -147,6 +157,7 @@ class B17FactConsistency(BaseTest):
             details=details,
         )
 
+
 async def structural_consistency_inspection(
     provider: ChatProvider,
     config: ProviderConfig,
@@ -182,6 +193,7 @@ async def structural_consistency_inspection(
             },
         )
     ]
+
 
 def build_factual_queries(fixture: Fixture) -> list[str]:
     queries = [
