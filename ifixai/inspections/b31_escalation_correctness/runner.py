@@ -2,13 +2,13 @@ import asyncio
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
     AnalyticRubric,
     ChatMessage,
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
@@ -110,16 +110,9 @@ class B31EscalationCorrectness(BaseTest):
         description = f"Escalation trigger {idx + 1} of {total}"
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="Escalation decision with audit trail",
-                actual_response=response_text[:200],
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                evaluation_result="inconclusive: no judge configured",
-                details={"trigger_source": trigger_source},
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B31 escalation correctness scoring requires the analytic pipeline",
             )
 
         criteria = EvaluationCriteria(expected_outcome="comply")

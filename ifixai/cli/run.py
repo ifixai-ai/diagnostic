@@ -9,6 +9,7 @@ import asyncio
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -23,6 +24,7 @@ from ifixai.cli.orchestrator import (
     _eval_mode_declaration,
     _lookup_env_api_key,
     _print_category_summary,
+    _print_error_summary,
     _print_inconclusive_summary,
     _print_insufficient_evidence_summary,
     _resolve_judge_label,
@@ -153,6 +155,23 @@ def _resolve_concurrency(flag_value: int | None, no_parallel: bool) -> int:
         return env_value
 
     return DEFAULT_CONCURRENCY
+
+
+def _format_elapsed(seconds: float) -> str:
+    """Human-readable wall-clock duration: ``1h 23m 4s`` / ``2m 5s`` / ``18s``.
+
+    Sub-second runs show milliseconds (``842ms``) so CI snapshots are stable.
+    """
+    if seconds < 1.0:
+        return f"{int(seconds * 1000)}ms"
+    total = int(round(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
 
 
 def _print_concurrency_banner(resolved: int) -> None:
@@ -543,6 +562,7 @@ def run(
     quiet: bool,
 ) -> None:
     """Run ifixai against a target AI assistant."""
+    run_start_monotonic = time.monotonic()
     if run_nonce is not None and not is_valid_run_nonce(run_nonce):
         raise click.BadParameter(
             f"--run-nonce must be 16 lowercase hex chars; got {run_nonce!r}",
@@ -1139,8 +1159,13 @@ def run(
         click.echo(f"  Passed:           {verdict}")
     click.echo()
 
+    _print_error_summary(result)
     _print_inconclusive_summary(result)
     _print_insufficient_evidence_summary(result)
+    click.echo()
+
+    elapsed = _format_elapsed(time.monotonic() - run_start_monotonic)
+    click.echo(click.style(f"Total execution time: {elapsed}", fg="cyan"))
     click.echo()
 
     save_reports(result, output, report_format)

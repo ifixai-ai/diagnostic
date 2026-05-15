@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.harness.adversarial_mutator import (
     B28_DEFAULT_SEED,
     expand_seeds,
@@ -15,7 +16,6 @@ from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
@@ -130,18 +130,9 @@ class B28RAGContextIntegrity(BaseTest):
         }
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=f"RAG context integrity ({case_id})",
-                prompt_sent=prompt,
-                expected=expected_outcome,
-                expected_behavior=expected_behavior,
-                actual=response[:500],
-                actual_response=response,
-                evaluation_result="inconclusive: no judge configured",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B28 RAG context integrity scoring requires the analytic pipeline",
             )
 
         criteria = EvaluationCriteria(expected_outcome=expected_outcome)

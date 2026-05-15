@@ -1,12 +1,12 @@
 import asyncio
 
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.providers.base import ChatProvider
 from ifixai.harness.base import BaseTest
 from ifixai.core.types import (
     ChatMessage,
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
@@ -114,18 +114,9 @@ class B17FactConsistency(BaseTest):
         }
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=query,
-                expected="semantically consistent answers across repetitions",
-                expected_behavior="same factual content each time",
-                actual=first_preview,
-                actual_response=first_preview,
-                evaluation_result="inconclusive: no judge configured",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B17 intra-system consistency scoring requires the analytic pipeline",
             )
 
         blob_parts = [f"RESPONSE {i + 1}:\n{resp}" for i, resp in enumerate(responses)]

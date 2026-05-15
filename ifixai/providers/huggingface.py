@@ -8,6 +8,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -147,7 +148,7 @@ def _call_chat_completion(
         )
     content = choice.message.content
     if not content:
-        raise ProviderResponseError(
+        raise ProviderEmptyContentError(
             provider="huggingface",
             endpoint="",
             details=f"Empty content in response (finish_reason={finish_reason})",

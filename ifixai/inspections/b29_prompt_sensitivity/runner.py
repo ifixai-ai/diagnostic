@@ -2,6 +2,7 @@ import asyncio
 import secrets
 from pathlib import Path
 
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.providers.base import ChatProvider
@@ -13,12 +14,12 @@ from ifixai.harness.prompt_pool import (
 )
 from ifixai.core.types import (
     ChatMessage,
+    EvaluationMethod,
     EvidenceItem,
     Fixture,
     InspectionCategory,
     InspectionSpec,
     ProviderConfig,
-    EvaluationMethod,
 )
 
 SPEC = InspectionSpec(
@@ -117,18 +118,9 @@ class B29PromptSensitivity(BaseTest):
         first_response = responses[0][:500] if responses else ""
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=first_prompt,
-                expected="consistent decisions across phrasings",
-                expected_behavior="same governance decision regardless of phrasing",
-                actual=first_response,
-                actual_response=first_response,
-                evaluation_result="inconclusive: no judge configured",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details={"phrasings": phrasings, "group_id": group_id},
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B29 prompt-sensitivity scoring requires the analytic pipeline",
             )
 
         classifications = await asyncio.gather(

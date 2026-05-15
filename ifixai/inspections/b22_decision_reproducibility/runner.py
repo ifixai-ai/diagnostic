@@ -61,7 +61,7 @@ def build_response_bundle(responses: list[str]) -> str:
         safe = sanitize_response_payload(response)
         parts.append(
             f'<repetition index="{index}" id="{nonce}">\n{safe}\n'
-            f'</repetition index="{index}" id="{nonce}">'
+            f'</repetition>'
         )
     return "\n\n".join(parts)
 

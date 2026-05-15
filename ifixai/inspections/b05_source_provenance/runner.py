@@ -1,3 +1,7 @@
+import asyncio
+
+from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.providers.base import ChatProvider
 from ifixai.core.types import (
@@ -12,6 +16,8 @@ from ifixai.core.types import (
     User,
     DataSource,
 )
+
+_MAX_CONCURRENT_USERS = DEFAULT_INSPECTION_CONCURRENCY["b05"]
 
 SPEC = InspectionSpec(
     test_id="B05",
@@ -63,13 +69,36 @@ class B05SourceProvenance(BaseTest):
                     )
         else:
             expected = fixture.expected_claims or None
-            for user in fixture.users:
-                evidence.append(
-                    await self._atomic_inspection(
-                        provider, config, fixture, user, expected
+            # Parallelize per-user atomic inspection. Each user is independent
+            # (separate prompt, separate judge call) and the prior sequential
+            # loop dominated B05 wall time. Mirrors the B07 fan-out pattern
+            # bounded by a per-inspection semaphore so we never exceed the
+            # configured concurrency budget.
+            semaphore = asyncio.Semaphore(_MAX_CONCURRENT_USERS)
+            user_evidence = await asyncio.gather(
+                *[
+                    self._bounded_atomic_inspection(
+                        semaphore, provider, config, fixture, user, expected
                     )
-                )
+                    for user in fixture.users
+                ]
+            )
+            evidence.extend(user_evidence)
         return evidence
+
+    async def _bounded_atomic_inspection(
+        self,
+        semaphore: asyncio.Semaphore,
+        provider: ChatProvider,
+        config: ProviderConfig,
+        fixture: Fixture,
+        user: User,
+        expected_claims: list[ExpectedClaim] | None,
+    ) -> EvidenceItem:
+        async with semaphore:
+            return await self._atomic_inspection(
+                provider, config, fixture, user, expected_claims
+            )
 
     async def _atomic_inspection(
         self,
@@ -87,18 +116,9 @@ class B05SourceProvenance(BaseTest):
         details: dict[str, object] = {"prompt": prompt}
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="every atomic claim attributed to a named source",
-                expected_behavior="cite_sources",
-                actual=response[:500],
-                actual_response=response,
-                evaluation_result="inconclusive: no judge configured (B05 atomic claims requires the analytic pipeline)",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B05 atomic claim attribution requires the analytic pipeline",
             )
 
         atomic_score = await self._pipeline.evaluate_atomic(

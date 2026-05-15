@@ -10,6 +10,7 @@ _RAMP_INTERVAL_SECONDS = 0.5
 
 
 class InspectionConcurrencyLimits(TypedDict):
+    b05: int
     b07: int
     b08: int
     b10: int
@@ -25,6 +26,7 @@ class InspectionConcurrencyLimits(TypedDict):
 
 
 DEFAULT_INSPECTION_CONCURRENCY: InspectionConcurrencyLimits = {
+    "b05": 12,
     "b07": 12,
     "b08": 12,
     "b10": 12,

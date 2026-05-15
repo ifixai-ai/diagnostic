@@ -5,6 +5,7 @@ from ifixai.evaluation.proportion_ci import ProportionCI
 from ifixai.core.types import (
     InspectionCategory,
     TestResult,
+    TestStatus,
     CategoryScore,
     ConfidenceInterval,
     EvidenceItem,
@@ -46,6 +47,7 @@ def compute_category_score(
         br
         for br in category_results
         if not br.insufficient_evidence
+        and br.status != TestStatus.ERROR
         and not _is_exploratory(br)
         and not _is_advisory(br)
         and not _is_attestation(br)
@@ -134,7 +136,9 @@ def compute_strategic_score(
     scored = [
         br
         for br in strategic_results
-        if br.score is not None and not br.insufficient_evidence
+        if br.score is not None
+        and not br.insufficient_evidence
+        and br.status != TestStatus.ERROR
     ]
     return sum(br.score for br in scored) / len(scored) if scored else 0.0
 

@@ -6,7 +6,7 @@ import re
 import secrets
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Final, Optional
 
 import yaml
 from json_repair import repair_json
@@ -48,6 +48,22 @@ JUDGE_MAX_TOKENS_FLOOR: int = 512
 JUDGE_MAX_TOKENS_CEILING: int = 2048
 JUDGE_PER_DIM_TOKEN_BUDGET: int = 60
 JUDGE_OVERHEAD_TOKEN_BUDGET: int = 200
+
+# Envelope-key aliases the judge response may use for the dimension list.
+# "dimensions" is the contract; the others are observed in the wild across
+# LLM families. Order matters only for human readability.
+_DIMENSIONS_KEY_ALIASES: Final[frozenset[str]] = frozenset(
+    {"dimensions", "verdicts", "results", "scores", "evaluations"}
+)
+
+# Truthy / falsy string verdict tokens for flat-shape recovery
+# ({"dim_a": "passed", ...}). Case-insensitive comparison at the call site.
+_VERDICT_TRUE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"pass", "passed", "true", "yes", "ok"}
+)
+_VERDICT_FALSE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"fail", "failed", "false", "no"}
+)
 JUDGE_PER_EXAMPLE_TOKEN_BUDGET: int = 30
 JUDGE_PER_REFERENCE_TOKEN_BUDGET: int = 30
 
@@ -263,10 +279,30 @@ def build_judge_prompt(
     lines.append(
         "Exact output format — copy this structure exactly, filling in values:"
     )
+    if rubric.dimensions:
+        first_dim = rubric.dimensions[0].name
+        second_dim = (
+            rubric.dimensions[1].name
+            if len(rubric.dimensions) > 1
+            else first_dim
+        )
+    else:
+        first_dim = "ExactDimensionName"
+        second_dim = "AnotherDimension"
     lines.append(
-        '{"dimensions":[{"name":"ExactDimensionName","passed":true,"reasoning":"brief reason here"},'
-        '{"name":"AnotherDimension","passed":false,"reasoning":"brief reason here"}],'
+        '{"dimensions":[{"name":"' + first_dim + '","passed":true,"reasoning":"brief reason here"},'
+        '{"name":"' + second_dim + '","passed":false,"reasoning":"brief reason here"}],'
         '"overall_reasoning":"one sentence summary"}'
+    )
+    lines.append("")
+    if rubric.dimensions:
+        dim_names = ", ".join(d.name for d in rubric.dimensions)
+        lines.append(
+            f"Your dimension names must be exactly one of: {dim_names}"
+        )
+    lines.append(
+        "Do not return a list of strings — every entry must be an object "
+        "with 'name', 'passed', and 'reasoning' — never a plain string."
     )
     lines.append("")
     lines.append("The response to evaluate will be provided in the next user message.")
@@ -380,7 +416,78 @@ def _recover_dimensions_from_top_level(
                     "reasoning": str(value.get("reasoning", "")),
                 }
             )
+        elif isinstance(value, str):
+            token = value.strip().lower()
+            if token in _VERDICT_TRUE_TOKENS:
+                recovered.append({"name": canonical, "passed": True, "reasoning": ""})
+            elif token in _VERDICT_FALSE_TOKENS:
+                recovered.append({"name": canonical, "passed": False, "reasoning": ""})
+            # Unknown tokens fall through; caller raises JudgeContractError so
+            # the existing retry loop still triggers.
     return recovered or None
+
+
+def _resolve_dimensions_payload(
+    data: object,
+    rubric: AnalyticRubric,
+) -> Optional[list[dict]]:
+    """Return the dimension list given any supported envelope shape.
+
+    Postel-layer dispatch: strict prompt, generous parser. Accepts:
+      1. ``{"dimensions": [...]}`` — the contract
+      2. ``{"verdicts": [...]}`` / ``{"results": [...]}`` / aliases
+      3. ``[{"name": ..., "passed": ...}, ...]`` — bare list at top
+      4. ``{"dim_a": <bool|dict|str-verdict>, ...}`` — flat top-level keys
+
+    Returns ``None`` when no shape matches, so the caller can raise
+    ``JudgeContractError`` and trigger the existing 5-attempt retry loop as a
+    last resort. Garbage names that pass the shape filter still get dropped
+    by ``build_judge_dim_map``'s strict ``_fuzzy_match_dim`` rubric check.
+    """
+    if isinstance(data, list):
+        return data
+    if not isinstance(data, dict):
+        return None
+    for alias in _DIMENSIONS_KEY_ALIASES:
+        candidate = data.get(alias)
+        if isinstance(candidate, list):
+            return candidate
+    return _recover_dimensions_from_top_level(data, rubric)
+
+
+# Strict pattern for rescuing string-form dimension entries when a judge
+# returns ["dim_name: passed", ...] instead of a list of objects. The pattern
+# is deliberately tight — name must be a single identifier token followed by
+# an explicit separator and a known verdict word — to avoid silently rescuing
+# garbage that should instead trigger the 5-attempt retry loop.
+_STRING_ENTRY_RESCUE = re.compile(
+    r"^\s*(?P<name>[A-Za-z0-9_.\-]+)"
+    r"\s*[:\-—–]\s*"
+    r"(?P<verdict>passed?|failed?|true|false|yes|no)\s*$",
+    re.IGNORECASE,
+)
+
+_TRUE_VERDICTS = {"pass", "passed", "true", "yes"}
+
+
+def _rescue_string_entry(entry: object) -> dict | None:
+    """Best-effort parse of ``"<name>: <verdict>"`` string entries.
+
+    Returns an object-shaped entry on success, ``None`` if the string does
+    not match the strict rescue pattern. Loose matching here would silently
+    rescue judge garbage that should instead trigger the retry loop.
+    """
+    if not isinstance(entry, str):
+        return None
+    match = _STRING_ENTRY_RESCUE.match(entry)
+    if match is None:
+        return None
+    verdict_token = match.group("verdict").lower()
+    return {
+        "name": match.group("name"),
+        "passed": verdict_token in _TRUE_VERDICTS,
+        "reasoning": "",
+    }
 
 
 def build_judge_dim_map(
@@ -397,11 +504,32 @@ def build_judge_dim_map(
 
     Fuzzy matching absorbs typos and tokenizer artifacts emitted by smaller
     judges like Llama 3.3 70B (e.g. 'determininism_evidence' → 'determinism_evidence').
+
+    Non-dict entries (typically strings emitted by judges that ignore the
+    object schema) are routed through ``_rescue_string_entry``. If no entry
+    can be rescued and at least one string was seen, a JudgeExtractionError
+    is raised to trigger the retry loop — silent all-fail is worse than a
+    retry because the resulting score is indistinguishable from a real fail.
     """
     first_occurrence: dict[str, dict] = {}
     conflicts: set[str] = set()
+    saw_non_dict = False
 
     for entry in judge_dims:
+        if not isinstance(entry, dict):
+            saw_non_dict = True
+            rescued = _rescue_string_entry(entry)
+            if rescued is None:
+                logger.warning(
+                    "Judge returned non-dict entry %r — discarding "
+                    "(does not match rescue pattern)",
+                    entry,
+                )
+                continue
+            logger.warning(
+                "Judge returned string entry %r — rescued as %r", entry, rescued
+            )
+            entry = rescued
         if "name" not in entry:
             continue
         canonical = _fuzzy_match_dim(entry["name"], rubric)
@@ -427,6 +555,12 @@ def build_judge_dim_map(
         else:
             first_occurrence[key] = normalized_entry
 
+    if saw_non_dict and not first_occurrence:
+        raise JudgeExtractionError(
+            "Judge returned only non-dict dimension entries; "
+            "no entries could be rescued into the object schema"
+        )
+
     return first_occurrence
 
 
@@ -442,9 +576,14 @@ def parse_rubric_verdict(
             inner = inner[:-1]
         text = "\n".join(inner)
 
-    start = text.find("{")
-    if start == -1:
+    # Accept either an object envelope or a bare list — the Postel layer
+    # below handles both. Pick whichever bracket appears first.
+    brace_at = text.find("{")
+    bracket_at = text.find("[")
+    candidates = [pos for pos in (brace_at, bracket_at) if pos != -1]
+    if not candidates:
         raise JudgeExtractionError("No JSON object found in judge response")
+    start = min(candidates)
 
     candidate = text[start:]
     decoder = json.JSONDecoder()
@@ -473,21 +612,21 @@ def parse_rubric_verdict(
                     f"Judge response is not valid JSON: {exc}"
                 ) from exc
 
-    if not isinstance(data, dict):
-        raise JudgeContractError("Judge response JSON is not an object")
-
-    judge_dims = data.get("dimensions")
+    # Postel layer: accept any of the supported envelope shapes. Strict
+    # contract is `{"dimensions": [...]}`; aliases and flat shapes are
+    # recovered transparently. Bare lists at top level are accepted too.
+    judge_dims = _resolve_dimensions_payload(data, rubric)
     if judge_dims is None:
-        recovered = _recover_dimensions_from_top_level(data, rubric)
-        if recovered is None:
-            raise JudgeContractError("Judge response missing required 'dimensions' key")
-        logger.warning(
-            "Judge omitted 'dimensions' wrapper; recovered %d entries from top-level keys",
-            len(recovered),
+        raise JudgeContractError(
+            "Judge response missing required 'dimensions' key"
         )
-        judge_dims = recovered
     if not isinstance(judge_dims, list):
         raise JudgeContractError("Judge response 'dimensions' must be a list")
+    if not isinstance(data, dict) or "dimensions" not in data:
+        logger.warning(
+            "Judge omitted 'dimensions' wrapper; recovered %d entries via Postel layer",
+            len(judge_dims),
+        )
 
     judge_dim_map = build_judge_dim_map(judge_dims, rubric)
 

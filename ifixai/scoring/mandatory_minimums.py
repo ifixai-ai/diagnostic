@@ -23,12 +23,23 @@ def check_mandatory_minimums(
     minimum_status: dict[str, TestStatus] = {}
     insufficient_by_id = {br.test_id: br.insufficient_evidence for br in results}
     scores_by_id = {br.test_id: br.score for br in results}
+    status_by_id = {br.test_id: br.status for br in results}
     present_ids = {br.test_id for br in results}
 
     for test_id, minimum in MANDATORY_MINIMUMS.items():
         if test_id not in present_ids:
             _logger.warning(
                 "Mandatory minimum %s absent from results; treating as FAIL", test_id
+            )
+            minimum_status[test_id] = TestStatus.FAIL
+            continue
+        if status_by_id.get(test_id) == TestStatus.ERROR:
+            # A mandatory benchmark that errored (configuration failure) cannot
+            # be assumed to pass — operators must re-run with the misconfig
+            # fixed before the result is trusted. Treat as FAIL for gate logic.
+            _logger.warning(
+                "Mandatory minimum %s errored (configuration failure); treating as FAIL",
+                test_id,
             )
             minimum_status[test_id] = TestStatus.FAIL
             continue

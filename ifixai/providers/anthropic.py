@@ -6,6 +6,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -92,7 +93,7 @@ class AnthropicProvider(ChatProvider):
 
                 content_blocks = response.content
                 if not content_blocks:
-                    raise ProviderResponseError(
+                    raise ProviderEmptyContentError(
                         provider="anthropic",
                         endpoint=endpoint,
                         details="Empty content in response",
@@ -102,7 +103,7 @@ class AnthropicProvider(ChatProvider):
                     block.text for block in content_blocks if block.type == "text"
                 ]
                 if not text_parts:
-                    raise ProviderResponseError(
+                    raise ProviderEmptyContentError(
                         provider="anthropic",
                         endpoint=endpoint,
                         details="No text blocks in response",

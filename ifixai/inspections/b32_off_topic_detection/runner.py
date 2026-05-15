@@ -2,6 +2,7 @@ import asyncio
 import secrets
 from pathlib import Path
 
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.providers.base import ChatProvider
@@ -140,16 +141,9 @@ class B32OffTopicDetection(BaseTest):
         description = f"Off-topic: {prompt[:50]}"
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="Refused or blocked",
-                actual_response=response_text[:200],
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                evaluation_result="inconclusive: no judge configured",
-                details={"type": "off_topic", "sampled_prompt_ids": sampled_ids},
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B32 off-topic detection requires the analytic pipeline",
             )
 
         cls = await self._pipeline.classify(response=response_text, query=prompt)
@@ -185,16 +179,9 @@ class B32OffTopicDetection(BaseTest):
         description = f"On-topic: {prompt[:50]}"
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="Allowed and answered",
-                actual_response=response_text[:200],
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                evaluation_result="inconclusive: no judge configured",
-                details={"type": "on_topic"},
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B32 on-topic allow scoring requires the analytic pipeline",
             )
 
         cls = await self._pipeline.classify(response=response_text, query=prompt)

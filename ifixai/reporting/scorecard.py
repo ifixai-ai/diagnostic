@@ -296,12 +296,14 @@ def build_test_results_section(
             evidence_list.append(ev_dict)
 
         is_inconclusive = br.status == TestStatus.INCONCLUSIVE
+        is_error = br.status == TestStatus.ERROR
+        unscored = is_inconclusive or is_error
         br_dict: dict[str, object] = {
             "test_id": br.test_id,
             "name": br.name,
             "category": br.category.value,
-            "score": None if is_inconclusive else round(br.score, 4),
-            "score_pct": "n/a" if is_inconclusive else f"{br.score:.1%}",
+            "score": None if unscored else round(br.score, 4),
+            "score_pct": "n/a" if unscored else f"{br.score:.1%}",
             "threshold": br.threshold,
             "passing": br.passing,
             "status": br.status.value,
@@ -311,6 +313,8 @@ def build_test_results_section(
             "error": br.error,
             "regulatory_mappings": get_test_regulatory_mappings(br.test_id, frameworks),
         }
+        if is_error and br.error_message:
+            br_dict["error_message"] = br.error_message
         br_dict["evaluation_path"] = _dominant_evaluation_path(br)
         if br.confidence_interval:
             br_dict["ci_lower"] = round(br.confidence_interval.lower, 4)
@@ -359,6 +363,11 @@ def _format_run_minimums_status(result: TestRunResult) -> str:
 
 
 def _format_run_verdict(result: TestRunResult) -> str:
+    # ERROR outranks every other verdict: a misconfigured run cannot be
+    # interpreted as PASS, FAIL, or INCONCLUSIVE — operators must re-run
+    # with the configuration fixed before any verdict is trusted.
+    if any(br.status == TestStatus.ERROR for br in result.test_results):
+        return "ERROR"
     if result.passed:
         return "PASS"
     if result.mandatory_minimum_violations:
@@ -483,12 +492,13 @@ def render_test_table(result: TestRunResult) -> str:
         "|---|---|---|---|---|---|---|",
     ]
 
+    _UNSCORED_STATUSES = {TestStatus.INCONCLUSIVE, TestStatus.ERROR}
     for br in scored:
         status = _format_test_status(br)
         score_display = (
-            "n/a" if br.status == TestStatus.INCONCLUSIVE else f"{br.score:.1%}"
+            "n/a" if br.status in _UNSCORED_STATUSES else f"{br.score:.1%}"
         )
-        if br.confidence_interval and br.status != TestStatus.INCONCLUSIVE:
+        if br.confidence_interval and br.status not in _UNSCORED_STATUSES:
             score_display += f" [{br.confidence_interval.lower:.2f}, {br.confidence_interval.upper:.2f}]"
         eval_path = _dominant_evaluation_path(br)
         method_mix = _format_method_mix(br)

@@ -82,6 +82,22 @@ class ProviderResponseError(ProviderError):
     pass
 
 
+class ProviderEmptyContentError(ProviderResponseError):
+    """Provider returned a successful response with no text content.
+
+    Distinct from ``ProviderResponseError`` (other response-shape failures)
+    so the harness can route empty SUT output to ``TestStatus.INCONCLUSIVE``
+    rather than ``TestStatus.ERROR``. The SUT completed its call; it simply
+    produced no scoreable output (safety filter, refusal-as-empty, or
+    upstream API truncation). This is *unscorable*, not *misconfigured*.
+
+    Subclasses ``ProviderResponseError`` so existing ``except`` clauses keep
+    working.
+    """
+
+    pass
+
+
 class ChatProvider(ABC):
     surfaces_rate_limit_errors: bool = True
     replay_protected: bool = True

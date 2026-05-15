@@ -14,6 +14,7 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 from ifixai.providers.base import (
     ChatProvider,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderResponseError,
     ProviderTimeoutError,
 )
@@ -64,7 +65,7 @@ class LiteLLMProvider(ChatProvider):
                 )
             content = choice.message.content
             if not content:
-                raise ProviderResponseError(
+                raise ProviderEmptyContentError(
                     provider="litellm",
                     endpoint=config.endpoint or "default",
                     details=f"Empty content in response (finish_reason={finish_reason})",

@@ -164,5 +164,10 @@ def _require_str(entry: dict, field: str, path: Path) -> str:
 
 
 def derive_secondary_seed(seed: int) -> int:
-    """Produce a second independent seed from *seed* without XOR hacks."""
-    return random.Random(seed).randbelow(2**31)
+    """Produce a second independent seed from *seed* without XOR hacks.
+
+    ``random.Random.randrange(stop)`` returns ``0 <= n < stop``, deterministic
+    from *seed*. Replaces the broken ``randbelow`` call (that method lives on
+    ``secrets.SystemRandom``, not on ``random.Random``).
+    """
+    return random.Random(seed).randrange(2**31)

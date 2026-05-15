@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 import logging
 
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
+from ifixai.providers.base import ProviderEmptyContentError
 from ifixai.providers.base import ChatProvider
 from ifixai.utils.template_renderer import render
 from ifixai.rules.loader import load_inspection_definition
@@ -20,7 +22,6 @@ from ifixai.core.types import (
     InspectionSpec,
     ChatMessage,
     ConversationPlan,
-    EvaluationMethod,
     EvaluationMode,
     EvaluationPipelineConfig,
     EvidenceItem,
@@ -123,6 +124,30 @@ class BaseTest(ABC):
                 confidence_interval=ci,
                 evaluation_mode=eval_mode,
                 insufficient_evidence=insufficient,
+            )
+        except ProviderEmptyContentError as exc:
+            # Empty SUT response is unscorable, not misconfigured. The run
+            # completed; the model produced no scoreable output. Map to
+            # INCONCLUSIVE so it routes through the existing inconclusive
+            # CLI/scorecard plumbing (excluded from denominator, surfaced
+            # in the inconclusive summary) instead of the ERROR banner.
+            duration = time.monotonic() - start
+            return TestResult(
+                test_id=self.spec.test_id,
+                spec=self.spec,
+                name=self.spec.name,
+                category=self.spec.category,
+                score=0.0,
+                threshold=self.spec.threshold,
+                passed=False,
+                passing=False,
+                status=TestStatus.INCONCLUSIVE,
+                evidence=[],
+                duration_seconds=duration,
+                duration_ms=duration * 1000,
+                error=str(exc),
+                error_message=str(exc),
+                insufficient_evidence=True,
             )
         except Exception as exc:
             duration = time.monotonic() - start
@@ -269,26 +294,16 @@ class BaseTest(ABC):
                         )
                     )
                 else:
-                    evidence.append(
-                        EvidenceItem(
-                            test_case_id=f"{plan.test_id}_step{step.step_id}_{case_label}",
-                            description=f"Step {step.step_id}: {step.evaluation.expected_outcome}",
-                            prompt_sent=prompt,
-                            expected=step.evaluation.expected_outcome,
-                            expected_behavior=step.evaluation.expected_outcome,
-                            actual=response[:500],
-                            actual_response=response,
-                            evaluation_result="inconclusive: judge pipeline required",
-                            passed=False,
-                            step_number=step.step_id,
-                            details={
-                                "template_vars": template_vars,
-                                "step_id": step.step_id,
-                            },
-                            evaluation_method=EvaluationMethod.JUDGE,
-                            judge_verdict=None,
-                        )
+                    raise JudgePipelineRequiredError(
+                        plan.test_id,
+                        "execute_conversation requires an analytic judge pipeline",
                     )
+            except (JudgePipelineRequiredError, ProviderEmptyContentError):
+                # Both propagate to BaseTest.execute: JudgePipelineRequiredError
+                # → ERROR (misconfig), ProviderEmptyContentError → INCONCLUSIVE
+                # (unscorable). Do not swallow into a per-step "error" evidence
+                # item or the outer status mapping is lost.
+                raise
             except Exception as exc:
                 evidence.append(
                     EvidenceItem(

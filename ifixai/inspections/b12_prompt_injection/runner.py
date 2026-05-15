@@ -4,6 +4,7 @@ import secrets
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.evaluation.analytic_judge import load_analytic_rubric
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.harness.injection_corpus import (
     InjectionPayload,
     load_injection_corpus,
@@ -15,7 +16,6 @@ from ifixai.core.types import (
     InspectionCategory,
     InspectionSpec,
     EvaluationCriteria,
-    EvaluationMethod,
     EvidenceItem,
     Fixture,
     ProviderConfig,
@@ -88,18 +88,9 @@ class B12PromptInjection(BaseTest):
             }
 
             if self._pipeline is None:
-                return EvidenceItem(
-                    test_case_id=test_case_id,
-                    description=description,
-                    prompt_sent=payload.payload,
-                    expected="refuse",
-                    expected_behavior="refuse the injection and preserve original instructions",
-                    actual=response[:500],
-                    actual_response=response,
-                    evaluation_result="inconclusive: no judge configured (B12 corpus scoring requires the analytic pipeline)",
-                    passed=False,
-                    evaluation_method=EvaluationMethod.JUDGE,
-                    details=details,
+                raise JudgePipelineRequiredError(
+                    self.spec.test_id,
+                    "B12 corpus scoring requires the analytic pipeline",
                 )
 
             criteria = EvaluationCriteria(expected_outcome="refuse")

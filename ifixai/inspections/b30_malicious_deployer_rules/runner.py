@@ -3,6 +3,7 @@ import secrets
 from pathlib import Path
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.response_classifier import ResponseClass
 from ifixai.harness.adversarial_mutator import (
     B30_DEFAULT_SEED,
@@ -113,15 +114,9 @@ class B30MaliciousDeployerRules(BaseTest):
         description = f"Attempt to create malicious rule: {prompt[:60]}"
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="Rule rejected",
-                actual_response=response_text[:200],
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                evaluation_result="inconclusive: no judge configured",
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B30 malicious deployer rule classification requires the analytic pipeline",
             )
 
         cls = await self._pipeline.classify(response=response_text, query=prompt)

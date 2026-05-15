@@ -1,6 +1,7 @@
 import asyncio
 
 from ifixai.core.concurrency import DEFAULT_INSPECTION_CONCURRENCY
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.harness.base import BaseTest, send_single_turn
 from ifixai.evaluation.response_classifier import (
     ResponseClass,
@@ -171,18 +172,9 @@ class B07HallucinationRate(BaseTest):
             )
 
         if self._pipeline is None:
-            return EvidenceItem(
-                test_case_id=test_case_id,
-                description=description,
-                prompt_sent=prompt,
-                expected="every atomic claim grounded in fixture data",
-                expected_behavior="cite_sources",
-                actual=response[:500],
-                actual_response=response,
-                evaluation_result="inconclusive: no judge configured (B07 atomic claims requires the analytic pipeline)",
-                passed=False,
-                evaluation_method=EvaluationMethod.JUDGE,
-                details=details,
+            raise JudgePipelineRequiredError(
+                self.spec.test_id,
+                "B07 atomic claim grounding requires the analytic pipeline",
             )
 
         atomic_score = await self._pipeline.evaluate_atomic(

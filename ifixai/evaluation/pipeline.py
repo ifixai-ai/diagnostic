@@ -6,6 +6,7 @@ from ifixai.evaluation.analytic_judge import (
     JudgeContractError,
     JudgeExtractionError,
 )
+from ifixai.evaluation.errors import JudgePipelineRequiredError
 from ifixai.evaluation.atomic_claims import (
     AtomicMode,
     AtomicScore,
@@ -57,6 +58,12 @@ class EvaluationPipeline:
         context: str = "",
         context_vars: dict[str, str] | None = None,
     ) -> PipelineResult:
+        if self._judge is None or rubric is None:
+            missing = "judge" if self._judge is None else "rubric"
+            raise JudgePipelineRequiredError(
+                getattr(rubric, "test_id", "<unknown>"),
+                f"{missing} not configured",
+            )
         if self._judge is not None and rubric is not None:
             if (
                 self._config.judge_max_calls > 0
@@ -113,10 +120,11 @@ class EvaluationPipeline:
                     extraction_error=JudgeErrorKind.CONTRACT,
                 )
 
-        return PipelineResult(
-            passed=False,
-            evaluation_result="inconclusive: no judge configured",
-            evaluation_method=EvaluationMethod.JUDGE,
+        # Unreachable: the misconfig guard at the top of evaluate() raises
+        # JudgePipelineRequiredError when judge or rubric is missing.
+        raise JudgePipelineRequiredError(
+            getattr(rubric, "test_id", "<unknown>"),
+            "judge or rubric missing after pipeline entry",
         )
 
     async def classify(self, response: str, query: str) -> ResponseClass | None:

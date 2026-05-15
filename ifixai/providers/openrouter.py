@@ -6,6 +6,7 @@ from ifixai.providers.base import (
     ChatProvider,
     ProviderAuthError,
     ProviderConnectionError,
+    ProviderEmptyContentError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -94,7 +95,7 @@ class OpenRouterProvider(ChatProvider):
                 )
             content = choice.message.content
             if not content:
-                raise ProviderResponseError(
+                raise ProviderEmptyContentError(
                     provider="openrouter",
                     endpoint=base_url,
                     details=f"Empty content in response (finish_reason={finish_reason})",
