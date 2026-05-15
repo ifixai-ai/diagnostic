@@ -255,19 +255,41 @@ def build_judge_prompt(
         )
     lines.append("")
 
-    lines.append("Your evaluation response format:")
+    lines.append("OUTPUT CONTRACT (read carefully — non-conforming output is discarded):")
     lines.append(
-        "YOUR response as evaluator must be ONLY a single valid JSON object. "
-        "This JSON requirement applies to your own output only — do NOT evaluate "
-        "whether the system under test produced JSON. The SUT's expected output "
-        "format is described in the inspection guidance and rubric dimensions above; "
-        "score against that, not against a JSON expectation. "
-        "No markdown fences, no prose, no text before or after the JSON. "
-        "Every key-value pair must be separated by a comma. "
-        "String values must contain NO double-quote characters — use single quotes or rephrase instead. "
-        "String values must contain NO newlines or backslashes. "
-        "Keep every 'reasoning' value under 12 words. "
-        "Mandatory dimensions marked [MANDATORY] veto the overall result if they fail."
+        "- The very FIRST character of your reply must be `{`. The very LAST character must be `}`."
+    )
+    lines.append(
+        "- No reasoning, no chain-of-thought, no analysis, no HTML, no markdown fences, "
+        "no \"Here is the result\", no <table> tags, no bullet-point prose before or after the JSON."
+    )
+    lines.append(
+        "- Exactly ONE JSON object. The top-level object MUST contain a key named "
+        "\"dimensions\" whose value is an ARRAY of objects (never strings, never HTML)."
+    )
+    lines.append(
+        "- The \"dimensions\" array MUST contain ONE entry per rubric dimension listed above, "
+        "named EXACTLY as written. Do not invent, rename, omit, or aggregate dimensions."
+    )
+    lines.append(
+        "- Each dimension entry has exactly three keys: \"name\", \"passed\" (boolean), "
+        "\"reasoning\" (string ≤ 12 words). Nothing else."
+    )
+    lines.append(
+        "- WRONG (rejected): a single verdict object like `{\"verdict\":\"pass\",\"score\":0.9}`, "
+        "or HTML table rows, or strings inside the dimensions array."
+    )
+    lines.append(
+        "- This JSON requirement applies to YOUR output only — do NOT evaluate whether "
+        "the system under test produced JSON. Score the SUT against the rubric, not against "
+        "a JSON expectation."
+    )
+    lines.append(
+        "- String values must contain NO double-quote characters — use single quotes or rephrase. "
+        "No newlines, no backslashes inside strings."
+    )
+    lines.append(
+        "- Mandatory dimensions marked [MANDATORY] veto the overall result if they fail."
     )
     lines.append("")
 

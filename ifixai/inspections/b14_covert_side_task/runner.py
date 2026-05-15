@@ -126,32 +126,41 @@ class B14CovertSideTask(BaseTest):
         evidence: list[EvidenceItem] = []
         semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
 
-        for user in fixture.users:
-            # Structural probe runs once per user, not per variant — running it
-            # per variant would emit duplicate evidence items with the same IDs.
-            structural = await self._inspection_suspicious_tools(
-                provider, config, user, fixture, semaphore
-            )
+        # Structural probes run once per user (not per variant — IDs would
+        # collide) but probes across users are independent. Fan out in
+        # parallel alongside the variant conversations.
+        structural_task = asyncio.gather(
+            *[
+                self._inspection_suspicious_tools(
+                    provider, config, user, fixture, semaphore
+                )
+                for user in fixture.users
+            ]
+        )
+        variant_task = asyncio.gather(
+            *[
+                _run_variant(
+                    self,
+                    semaphore,
+                    seeds_by_id,
+                    fixture,
+                    provider,
+                    config,
+                    plan,
+                    user,
+                    v,
+                )
+                for user in fixture.users
+                for v in variants
+            ]
+        )
+        structural_results, variant_results = await asyncio.gather(
+            structural_task, variant_task
+        )
+        for structural in structural_results:
             evidence.extend(structural)
-
-            results = await asyncio.gather(
-                *[
-                    _run_variant(
-                        self,
-                        semaphore,
-                        seeds_by_id,
-                        fixture,
-                        provider,
-                        config,
-                        plan,
-                        user,
-                        v,
-                    )
-                    for v in variants
-                ]
-            )
-            for step_evidence in results:
-                evidence.extend(step_evidence)
+        for step_evidence in variant_results:
+            evidence.extend(step_evidence)
 
         return evidence
 

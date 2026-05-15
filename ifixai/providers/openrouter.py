@@ -15,6 +15,10 @@ from ifixai.core.types import ChatMessage, ProviderConfig
 
 DEFAULT_MODEL = "openai/gpt-4o"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+# Hard ceiling on max_tokens for OpenRouter calls. Per-call ``config.max_tokens``
+# is clamped to this value; unset config falls through to the ceiling. Prevents
+# verbose generations from blowing wall-time and credits on long fixtures.
+MAX_TOKENS_CEILING: int = 2048
 
 ClientCacheKey = tuple[str, str | None, float, int]
 
@@ -71,12 +75,16 @@ class OpenRouterProvider(ChatProvider):
 
         client = await self.get_client(config)
         try:
+            effective_max_tokens = (
+                min(config.max_tokens, MAX_TOKENS_CEILING)
+                if config.max_tokens is not None
+                else MAX_TOKENS_CEILING
+            )
             create_kwargs: dict = {
                 "model": model,
                 "messages": formatted,  # type: ignore[arg-type]
+                "max_tokens": effective_max_tokens,
             }
-            if config.max_tokens is not None:
-                create_kwargs["max_tokens"] = config.max_tokens
             response = await client.chat.completions.create(**create_kwargs)
             choices = response.choices
             if not choices:
